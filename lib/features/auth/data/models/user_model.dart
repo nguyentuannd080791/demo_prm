@@ -1,0 +1,10 @@
+import '../../domain/entities/user.dart';
+
+class UserModel extends User {
+  const UserModel({required super.username});
+
+  factory UserModel.fromJson(Map<String, dynamic> json) =>
+      UserModel(username: json['username'].toString());
+
+  Map<String, dynamic> toJson() => {'username': username};
+}
