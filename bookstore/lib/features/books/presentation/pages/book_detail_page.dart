@@ -22,13 +22,13 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   void _addToCart({bool showToast = true}) {
     context.read<CartProvider>().add(
-          CartItem(
-            bookId: widget.book.bookId,
-            bookName: widget.book.bookName,
-            price: widget.book.price,
-            quantity: _quantity,
-          ),
-        );
+      CartItem(
+        bookId: widget.book.bookId,
+        bookName: widget.book.bookName,
+        price: widget.book.price,
+        quantity: _quantity,
+      ),
+    );
     if (showToast) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -43,9 +43,8 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   void _buyNow() {
     _addToCart(showToast: false);
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const CheckoutPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const CheckoutPage()));
   }
 
   @override
@@ -97,8 +96,12 @@ class _BookDetailPageState extends State<BookDetailPage> {
               Expanded(
                 child: FilledButton.icon(
                   onPressed: book.status ? _buyNow : null,
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  label: const Text('Mua ngay'),
+                  icon: Icon(
+                    book.status
+                        ? Icons.shopping_bag_outlined
+                        : Icons.remove_shopping_cart_outlined,
+                  ),
+                  label: Text(book.status ? 'Mua ngay' : 'Hết hàng'),
                 ),
               ),
             ],
@@ -113,7 +116,9 @@ class _BookDetailPageState extends State<BookDetailPage> {
               width: 130,
               height: 180,
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                color: theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.4,
+                ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -149,7 +154,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: book.status
                       ? Colors.green.withValues(alpha: 0.12)
@@ -197,6 +205,68 @@ class _BookDetailPageState extends State<BookDetailPage> {
               ],
             ),
             const Divider(height: 24),
+          ] else ...[
+            Row(
+              children: [
+                Text(
+                  'Số lượng:',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+                const Spacer(),
+                const IconButton.outlined(
+                  iconSize: 18,
+                  onPressed: null,
+                  icon: Icon(Icons.remove),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '0',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                ),
+                const IconButton.outlined(
+                  iconSize: 18,
+                  onPressed: null,
+                  icon: Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.red.shade700,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Sản phẩm hiện đang tạm hết hàng',
+                      style: TextStyle(
+                        color: Colors.red.shade800,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
           ],
           _InfoRow(label: 'Tác giả', value: book.author),
           _InfoRow(label: 'Nhà xuất bản', value: book.publisher),
@@ -209,7 +279,9 @@ class _BookDetailPageState extends State<BookDetailPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            book.summary.isEmpty ? 'Chưa có thông tin tóm tắt cho cuốn sách này.' : book.summary,
+            book.summary.isEmpty
+                ? 'Chưa có thông tin tóm tắt cho cuốn sách này.'
+                : book.summary,
             style: theme.textTheme.bodyMedium?.copyWith(
               height: 1.5,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.85),

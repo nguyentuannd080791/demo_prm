@@ -1,4 +1,5 @@
 import '../../domain/entities/book.dart';
+import '../../domain/entities/create_book_params.dart';
 import '../../domain/repositories/book_repository.dart';
 import '../datasources/book_remote_datasource.dart';
 
@@ -9,7 +10,11 @@ class BookRepositoryImpl implements BookRepository {
 
   @override
   Future<List<Book>> getBooks() async {
-    final books = await _remote.fetchBooks();
-    return books.where((book) => book.status).toList();
+    return _remote.fetchBooks();
+  }
+
+  @override
+  Future<Book> createBook(CreateBookParams params) {
+    return _remote.createBook(params);
   }
 }

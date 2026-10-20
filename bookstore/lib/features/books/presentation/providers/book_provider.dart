@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../domain/entities/book.dart';
+import '../../domain/entities/create_book_params.dart';
 import '../../domain/repositories/book_repository.dart';
 
 class BookProvider extends ChangeNotifier {
@@ -38,5 +39,11 @@ class BookProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<Book> createBook(CreateBookParams params) async {
+    final newBook = await _repository.createBook(params);
+    await loadBooks();
+    return newBook;
   }
 }

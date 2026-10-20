@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../features/auth/presentation/providers/auth_provider.dart';
+import '../features/books/presentation/pages/add_book_page.dart';
 import '../features/books/presentation/pages/book_list_page.dart';
 import '../features/cart/presentation/pages/cart_page.dart';
 import '../features/cart/presentation/providers/cart_provider.dart';
@@ -135,6 +136,19 @@ class _HomeShellState extends State<HomeShell> {
           OrderListPage(),
         ],
       ),
+      floatingActionButton: _index == 0
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AddBookPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Thêm sách'),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (index) => setState(() => _index = index),

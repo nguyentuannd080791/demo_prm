@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../domain/entities/book.dart';
 import '../providers/book_provider.dart';
 import '../widgets/book_card.dart';
+import 'add_book_page.dart';
 import 'book_detail_page.dart';
 
 class BookListPage extends StatefulWidget {
@@ -55,7 +56,7 @@ class _BookListPageState extends State<BookListPage> {
     for (final b in provider.books) {
       tagSet.addAll(b.tags);
     }
-    final availableTags = ['Tất cả', ...tagSet, 'Đang bán'];
+    final availableTags = ['Tất cả', ...tagSet, 'Đang bán', 'Hết hàng'];
 
     // Lọc theo từ khóa tìm kiếm và tag được chọn
     final filteredBooks = provider.books.where((b) {
@@ -69,6 +70,8 @@ class _BookListPageState extends State<BookListPage> {
         matchesTag = true;
       } else if (_selectedTag == 'Đang bán') {
         matchesTag = b.status;
+      } else if (_selectedTag == 'Hết hàng') {
+        matchesTag = !b.status;
       } else {
         matchesTag = b.tags.contains(_selectedTag);
       }
@@ -124,7 +127,9 @@ class _BookListPageState extends State<BookListPage> {
                                 ? Icons.apps
                                 : tag == 'Đang bán'
                                     ? Icons.check_circle_outline
-                                    : Icons.tag,
+                                    : tag == 'Hết hàng'
+                                        ? Icons.remove_shopping_cart_outlined
+                                        : Icons.tag,
                             size: 18,
                             color: _selectedTag == tag
                                 ? theme.colorScheme.primary
@@ -172,7 +177,9 @@ class _BookListPageState extends State<BookListPage> {
                   avatar: Icon(
                     _selectedTag == 'Đang bán'
                         ? Icons.check_circle_outline
-                        : Icons.tag,
+                        : _selectedTag == 'Hết hàng'
+                            ? Icons.remove_shopping_cart_outlined
+                            : Icons.tag,
                     size: 16,
                   ),
                   onDeleted: () => setState(() => _selectedTag = 'Tất cả'),
@@ -223,6 +230,19 @@ class _BookListPageState extends State<BookListPage> {
                             onPressed: () => setState(() => _selectedTag = 'Tất cả'),
                             icon: const Icon(Icons.refresh),
                             label: const Text('Xem tất cả sách'),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const AddBookPage(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text('Thêm cuốn sách đầu tiên'),
                           ),
                         ],
                       ],
