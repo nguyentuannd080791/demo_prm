@@ -42,7 +42,7 @@ class BookModel extends Book {
       isbn: (json['isbn'] ?? '').toString(),
       stockQuantity: stock,
       categoryId: (json['categoryId'] as num?)?.toInt(),
-      imageURL: json['imageURL']?.toString(),
+      imageURL: (json['imageURL'] ?? json['imageUrl'] ?? json['image'])?.toString(),
     );
   }
 }

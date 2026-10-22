@@ -3,16 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../books/presentation/providers/book_provider.dart';
 import '../../../cart/presentation/providers/cart_provider.dart';
-import '../../data/datasources/address_local_datasource.dart';
-import '../../domain/entities/place_order_params.dart';
-import '../../domain/entities/shipping_address.dart';
+import '../logic/checkout_logic.dart';
 import '../providers/order_provider.dart';
-import '../widgets/address_selector_sheet.dart';
 
-/// Màn hình xác nhận đặt hàng
-/// Áp dụng SOLID (SRP): Tách riêng logic chọn/nhập địa chỉ, validate dữ liệu và gửi đơn hàng
+/// Màn hình xác nhận đặt hàng (Pure UI - SOLID SRP)
+/// Toàn bộ logic kiểm tra tồn kho, quản lý form, điều hướng và gửi đơn
+/// được ủy quyền cho [CheckoutLogic].
 class CheckoutPage extends StatefulWidget {
   const CheckoutPage({super.key});
 
@@ -21,168 +18,38 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _noteController = TextEditingController();
-
-  // Controllers dùng khi người dùng chưa có bất kỳ địa chỉ nào trong sổ địa chỉ
-  late final TextEditingController _newReceiverNameController;
-  late final TextEditingController _newPhoneController;
-  late final TextEditingController _newAddressController;
-
-  ShippingAddress? _selectedAddress;
-  bool _isInitialized = false;
+  late final CheckoutLogic _logic;
 
   @override
   void initState() {
     super.initState();
-    _newReceiverNameController = TextEditingController();
-    _newPhoneController = TextEditingController();
-    _newAddressController = TextEditingController();
+    _logic = CheckoutLogic();
+    _logic.addListener(_onLogicChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _logic.validateAndAdjustCart(context, showModalIfChanged: true);
+      }
+    });
+  }
+
+  void _onLogicChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_isInitialized) {
-      final user = context.read<AuthProvider>().user;
-      final userId = user?.userId ?? 0;
-      final ds = context.read<AddressLocalDataSource>();
-
-      final defaultAddress = ds.getDefaultOrFirst(userId);
-      if (defaultAddress != null) {
-        _selectedAddress = defaultAddress;
-      } else {
-        // Tên người nhận mặc định lấy từ họ tên (fullName), KHÔNG dùng username
-        _newReceiverNameController.text = user?.fullName ?? '';
-      }
-      _isInitialized = true;
-    }
+    _logic.init(context);
   }
 
   @override
   void dispose() {
-    _noteController.dispose();
-    _newReceiverNameController.dispose();
-    _newPhoneController.dispose();
-    _newAddressController.dispose();
+    _logic.removeListener(_onLogicChanged);
+    _logic.dispose();
     super.dispose();
-  }
-
-  void _openAddressSelector(int userId, String? defaultFullName) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => AddressSelectorSheet(
-        userId: userId,
-        selectedAddressId: _selectedAddress?.id,
-        defaultReceiverName: defaultFullName,
-        onSelect: (address) {
-          setState(() => _selectedAddress = address);
-        },
-      ),
-    );
-  }
-
-  Future<void> _submitOrder(BuildContext context) async {
-    final user = context.read<AuthProvider>().user;
-    final userId = user?.userId ?? 0;
-    final cartProvider = context.read<CartProvider>();
-    final orderProvider = context.read<OrderProvider>();
-    final addressDs = context.read<AddressLocalDataSource>();
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-    final errorColor = Theme.of(context).colorScheme.error;
-
-    String receiverName;
-    String phone;
-    String addressText;
-
-    if (_selectedAddress != null) {
-      receiverName = _selectedAddress!.receiverName;
-      phone = _selectedAddress!.phone;
-      addressText = _selectedAddress!.address;
-    } else {
-      // Trường hợp chưa có địa chỉ, validate form nhập trực tiếp
-      if (!_formKey.currentState!.validate()) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng kiểm tra lại thông tin người nhận và địa chỉ'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-      receiverName = _newReceiverNameController.text.trim();
-      phone = _newPhoneController.text.trim();
-      addressText = _newAddressController.text.trim();
-
-      // Tự động lưu địa chỉ này vào sổ địa chỉ để sử dụng cho lần sau
-      final newAddress = ShippingAddress(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        receiverName: receiverName,
-        phone: phone,
-        address: addressText,
-        isDefault: true,
-      );
-      await addressDs.saveAddress(userId, newAddress);
-      setState(() => _selectedAddress = newAddress);
-    }
-
-    final params = PlaceOrderParams(
-      items: cartProvider.cart.items,
-      receiverName: receiverName,
-      phone: phone,
-      shippingAddress: addressText,
-      note: _noteController.text.trim(),
-    );
-
-    final error = await orderProvider.placeOrder(params);
-
-    if (error != null) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: errorColor,
-        ),
-      );
-      return;
-    }
-
-    await cartProvider.clear();
-    final isAdmin = user?.isAdmin ?? false;
-    if (context.mounted) {
-      await context.read<BookProvider>().loadBooks(isAdmin: isAdmin);
-    }
-
-    if (!context.mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 56),
-        title: const Text('Đặt hàng thành công!'),
-        content: Text(
-          'Đơn hàng đã được tạo thành công cho người nhận "$receiverName". Bạn có thể theo dõi trong mục "Đơn hàng".',
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              navigator.popUntil((route) => route.isFirst);
-              if (context.mounted) {
-                context.read<BookProvider>().loadBooks(isAdmin: isAdmin);
-              }
-            },
-            child: const Text('Xem đơn hàng'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -202,6 +69,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
       );
     }
+
+    final selectedAddress = _logic.selectedAddress;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Xác nhận đặt hàng')),
@@ -224,8 +93,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.location_on_outlined,
-                              color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.location_on_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Địa chỉ nhận hàng',
@@ -235,21 +106,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           ),
                         ],
                       ),
-                      if (_selectedAddress != null)
+                      if (selectedAddress != null)
                         TextButton(
-                          onPressed: () => _openAddressSelector(userId, user?.fullName),
+                          onPressed: () => _logic.openAddressSelector(
+                            context,
+                            userId,
+                            user?.fullName,
+                          ),
                           child: const Text('Thay đổi'),
                         ),
                     ],
                   ),
                   const Divider(height: 16),
 
-                  if (_selectedAddress != null) ...[
+                  if (selectedAddress != null) ...[
                     // Trường hợp 1: Đã có địa chỉ trong sổ địa chỉ
                     Row(
                       children: [
                         Text(
-                          _selectedAddress!.receiverName,
+                          selectedAddress.receiverName,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -257,14 +132,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          _selectedAddress!.phone,
+                          selectedAddress.phone,
                           style: TextStyle(
                             color: theme.colorScheme.outline,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
                         ),
-                        if (_selectedAddress!.isDefault) ...[
+                        if (selectedAddress.isDefault) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -272,7 +147,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               vertical: 1.5,
                             ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -289,10 +165,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _selectedAddress!.address,
+                      selectedAddress.address,
                       style: TextStyle(
                         fontSize: 13.5,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.85),
                         height: 1.35,
                       ),
                     ),
@@ -304,11 +181,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       decoration: BoxDecoration(
                         color: Colors.amber.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color:
+                              Colors.amber.shade700.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.amber.shade900, size: 20),
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.amber.shade900,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -324,71 +208,45 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                     ),
                     Form(
-                      key: _formKey,
+                      key: _logic.formKey,
                       child: Column(
                         children: [
-                          // Tên người nhận (Phải dùng họ tên, không dùng username)
+                          // Tên người nhận
                           TextFormField(
-                            controller: _newReceiverNameController,
+                            controller: _logic.newReceiverNameController,
                             decoration: const InputDecoration(
                               labelText: 'Họ và tên người nhận *',
                               hintText: 'Ví dụ: Nguyễn Văn A',
                               prefixIcon: Icon(Icons.person_outline, size: 20),
                             ),
-                            validator: (val) {
-                              final text = val?.trim() ?? '';
-                              if (text.isEmpty) {
-                                return 'Vui lòng nhập họ và tên người nhận';
-                              }
-                              if (text.length < 2 || text.length > 100) {
-                                return 'Họ tên phải từ 2 đến 100 ký tự';
-                              }
-                              return null;
-                            },
+                            validator: _logic.validateReceiverName,
                           ),
                           const SizedBox(height: 10),
 
                           // Số điện thoại người nhận
                           TextFormField(
-                            controller: _newPhoneController,
+                            controller: _logic.newPhoneController,
                             keyboardType: TextInputType.phone,
                             decoration: const InputDecoration(
                               labelText: 'Số điện thoại người nhận *',
                               hintText: 'Ví dụ: 0912345678',
                               prefixIcon: Icon(Icons.phone_outlined, size: 20),
                             ),
-                            validator: (val) {
-                              final text = val?.trim() ?? '';
-                              if (text.isEmpty) {
-                                return 'Vui lòng nhập số điện thoại';
-                              }
-                              if (!PlaceOrderParams.vnPhoneRegex.hasMatch(text)) {
-                                return 'SĐT gồm 10 chữ số (đầu 03, 05, 07, 08, 09)';
-                              }
-                              return null;
-                            },
+                            validator: _logic.validatePhone,
                           ),
                           const SizedBox(height: 10),
 
                           // Địa chỉ chi tiết
                           TextFormField(
-                            controller: _newAddressController,
+                            controller: _logic.newAddressController,
                             maxLines: 2,
                             decoration: const InputDecoration(
                               labelText: 'Địa chỉ nhận hàng chi tiết *',
-                              hintText: 'Số nhà, đường/phố, phường/xã, quận/huyện, tỉnh/TP',
+                              hintText:
+                                  'Số nhà, đường/phố, phường/xã, quận/huyện, tỉnh/TP',
                               prefixIcon: Icon(Icons.home_outlined, size: 20),
                             ),
-                            validator: (val) {
-                              final text = val?.trim() ?? '';
-                              if (text.isEmpty) {
-                                return 'Vui lòng nhập địa chỉ nhận hàng';
-                              }
-                              if (text.length < 5 || text.length > 1000) {
-                                return 'Địa chỉ phải từ 5 đến 1000 ký tự';
-                              }
-                              return null;
-                            },
+                            validator: _logic.validateAddress,
                           ),
                         ],
                       ),
@@ -413,8 +271,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.edit_note_outlined,
-                          color: theme.colorScheme.primary),
+                      Icon(
+                        Icons.edit_note_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Ghi chú đơn hàng',
@@ -426,10 +286,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                   const Divider(height: 16),
                   TextField(
-                    controller: _noteController,
+                    controller: _logic.noteController,
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      hintText: 'Ghi chú cho người bán hoặc shipper (ví dụ: giao giờ hành chính, gọi trước khi đến...)',
+                      hintText:
+                          'Ghi chú cho người bán hoặc shipper (ví dụ: giao giờ hành chính, gọi trước khi đến...)',
                     ),
                   ),
                 ],
@@ -451,8 +312,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.shopping_bag_outlined,
-                          color: theme.colorScheme.primary),
+                      Icon(
+                        Icons.shopping_bag_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Danh sách sách đặt (${cart.totalQuantity})',
@@ -565,7 +428,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: isPlacing ? null : () => _submitOrder(context),
+            onPressed: (isPlacing || cart.isEmpty)
+                ? null
+                : () => _logic.submitOrder(context),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),

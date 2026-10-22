@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
-import '../../domain/entities/register_params.dart';
-import '../providers/auth_provider.dart';
+import '../logic/register_logic.dart';
 
+/// Màn hình đăng ký (Pure UI - SOLID SRP)
+/// Quản lý controller, xử lý đăng ký & điều hướng được ủy quyền cho [RegisterLogic].
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -14,52 +14,24 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _fullNameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
+  late final RegisterLogic _logic;
 
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
-  bool _isSubmitting = false;
-  String? _error;
+  @override
+  void initState() {
+    super.initState();
+    _logic = RegisterLogic();
+    _logic.addListener(_onLogicChanged);
+  }
+
+  void _onLogicChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _emailController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
+    _logic.removeListener(_onLogicChanged);
+    _logic.dispose();
     super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _isSubmitting = true;
-      _error = null;
-    });
-
-    final params = RegisterParams(
-      fullName: _fullNameController.text,
-      email: _emailController.text,
-      username: _usernameController.text,
-      password: _passwordController.text,
-    );
-
-    final error = await context.read<AuthProvider>().register(params);
-    if (!mounted) return;
-    if (error == null) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      return;
-    }
-    setState(() {
-      _isSubmitting = false;
-      _error = error;
-    });
   }
 
   @override
@@ -72,7 +44,7 @@ class _RegisterPageState extends State<RegisterPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Form(
-              key: _formKey,
+              key: _logic.formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -138,7 +110,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   // Họ và tên
                   AppTextField(
-                    controller: _fullNameController,
+                    controller: _logic.fullNameController,
                     label: 'Họ và tên',
                     prefixIcon: const Icon(Icons.badge_outlined),
                     textCapitalization: TextCapitalization.words,
@@ -149,7 +121,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   // Email
                   AppTextField(
-                    controller: _emailController,
+                    controller: _logic.emailController,
                     label: 'Email',
                     prefixIcon: const Icon(Icons.email_outlined),
                     keyboardType: TextInputType.emailAddress,
@@ -160,7 +132,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   // Tên đăng nhập
                   AppTextField(
-                    controller: _usernameController,
+                    controller: _logic.usernameController,
                     label: 'Tên đăng nhập',
                     prefixIcon: const Icon(Icons.person_outline),
                     textInputAction: TextInputAction.next,
@@ -170,20 +142,18 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   // Mật khẩu
                   AppTextField(
-                    controller: _passwordController,
+                    controller: _logic.passwordController,
                     label: 'Mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline),
-                    obscureText: _obscurePassword,
+                    obscureText: _logic.obscurePassword,
                     textInputAction: TextInputAction.next,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
+                        _logic.obscurePassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                       ),
-                      onPressed: () => setState(
-                        () => _obscurePassword = !_obscurePassword,
-                      ),
+                      onPressed: _logic.togglePasswordVisibility,
                     ),
                     validator: Validators.password,
                   ),
@@ -191,29 +161,26 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   // Xác nhận mật khẩu
                   AppTextField(
-                    controller: _confirmPasswordController,
+                    controller: _logic.confirmPasswordController,
                     label: 'Xác nhận mật khẩu',
                     prefixIcon: const Icon(Icons.lock_reset_outlined),
-                    obscureText: _obscureConfirmPassword,
+                    obscureText: _logic.obscureConfirmPassword,
                     textInputAction: TextInputAction.done,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureConfirmPassword
+                        _logic.obscureConfirmPassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                       ),
-                      onPressed: () => setState(
-                        () => _obscureConfirmPassword =
-                            !_obscureConfirmPassword,
-                      ),
+                      onPressed: _logic.toggleConfirmPasswordVisibility,
                     ),
                     validator: (value) => Validators.confirmPassword(
                       value,
-                      _passwordController.text,
+                      _logic.passwordController.text,
                     ),
                   ),
 
-                  if (_error != null) ...[
+                  if (_logic.error != null) ...[
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -227,7 +194,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        _error!,
+                        _logic.error!,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: theme.colorScheme.error,
@@ -241,14 +208,16 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   // Nút Đăng ký
                   FilledButton(
-                    onPressed: _isSubmitting ? null : _submit,
+                    onPressed: _logic.isSubmitting
+                        ? null
+                        : () => _logic.submit(context),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isSubmitting
+                    child: _logic.isSubmitting
                         ? const SizedBox(
                             height: 20,
                             width: 20,

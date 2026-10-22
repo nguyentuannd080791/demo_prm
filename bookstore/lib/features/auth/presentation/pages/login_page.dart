@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
-import '../providers/auth_provider.dart';
-import 'register_page.dart';
+import '../logic/login_logic.dart';
 
+/// Màn hình đăng nhập (Pure UI - SOLID SRP)
+/// Quản lý controller, xử lý đăng nhập & điều hướng được ủy quyền cho [LoginLogic].
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -14,42 +14,24 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  late final LoginLogic _logic;
 
-  bool _obscurePassword = true;
-  bool _isSubmitting = false;
-  String? _error;
+  @override
+  void initState() {
+    super.initState();
+    _logic = LoginLogic();
+    _logic.addListener(_onLogicChanged);
+  }
+
+  void _onLogicChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
+    _logic.removeListener(_onLogicChanged);
+    _logic.dispose();
     super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _isSubmitting = true;
-      _error = null;
-    });
-    final error = await context.read<AuthProvider>().login(
-      _usernameController.text.trim(),
-      _passwordController.text,
-    );
-    // Đăng nhập thành công: _AuthGate thay trang này nên widget đã bị hủy.
-    if (!mounted) return;
-    setState(() {
-      _isSubmitting = false;
-      _error = error;
-    });
-  }
-
-  void _openRegister() {
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => const RegisterPage()));
   }
 
   @override
@@ -62,7 +44,7 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Form(
-              key: _formKey,
+              key: _logic.formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,38 +106,36 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Tên đăng nhập hoặc Email
+                  // Tên đăng nhập
                   AppTextField(
-                    controller: _usernameController,
-                    label: 'Tên đăng nhập hoặc Email',
+                    controller: _logic.usernameController,
+                    label: 'Tên đăng nhập',
                     prefixIcon: const Icon(Icons.person_outline),
                     textInputAction: TextInputAction.next,
-                    validator: (value) =>
-                        Validators.required(value, 'tên đăng nhập hoặc email'),
+                    validator: Validators.username,
                   ),
                   const SizedBox(height: 16),
 
                   // Mật khẩu
                   AppTextField(
-                    controller: _passwordController,
+                    controller: _logic.passwordController,
                     label: 'Mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline),
-                    obscureText: _obscurePassword,
+                    obscureText: _logic.obscurePassword,
                     textInputAction: TextInputAction.done,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
+                        _logic.obscurePassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                       ),
-                      onPressed: () => setState(
-                        () => _obscurePassword = !_obscurePassword,
-                      ),
+                      onPressed: _logic.togglePasswordVisibility,
                     ),
                     validator: (value) =>
                         Validators.required(value, 'mật khẩu'),
                   ),
-                  if (_error != null) ...[
+
+                  if (_logic.error != null) ...[
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -167,7 +147,7 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        _error!,
+                        _logic.error!,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: theme.colorScheme.error,
@@ -181,14 +161,16 @@ class _LoginPageState extends State<LoginPage> {
 
                   // Nút Đăng nhập
                   FilledButton(
-                    onPressed: _isSubmitting ? null : _submit,
+                    onPressed: _logic.isSubmitting
+                        ? null
+                        : () => _logic.submit(context),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isSubmitting
+                    child: _logic.isSubmitting
                         ? const SizedBox(
                             height: 20,
                             width: 20,
@@ -199,14 +181,17 @@ class _LoginPageState extends State<LoginPage> {
                           )
                         : const Text(
                             'Đăng nhập',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                   const SizedBox(height: 16),
 
-                  // Chân trang chuyển sang đăng ký
+                  // Chân trang mở trang đăng ký
                   TextButton(
-                    onPressed: _openRegister,
+                    onPressed: () => _logic.openRegister(context),
                     child: const Text('Chưa có tài khoản? Đăng ký ngay'),
                   ),
                 ],

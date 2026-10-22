@@ -3,41 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
-import '../../domain/entities/order.dart';
+import '../logic/admin_order_list_logic.dart';
+import '../logic/order_action_logic.dart';
 import '../providers/order_provider.dart';
 import '../widgets/order_status_badge.dart';
-import 'order_detail_page.dart';
 
-enum _AdminOrderStatusFilter {
-  all('Tất cả'),
-  pending('Chờ duyệt'),
-  approved('Đã duyệt'),
-  shipping('Đang giao'),
-  completed('Hoàn thành'),
-  cancelled('Đã hủy / Từ chối');
-
-  const _AdminOrderStatusFilter(this.label);
-  final String label;
-
-  bool matches(Order order) {
-    final status = order.status.toUpperCase().trim();
-    switch (this) {
-      case _AdminOrderStatusFilter.all:
-        return true;
-      case _AdminOrderStatusFilter.pending:
-        return status == 'PENDING';
-      case _AdminOrderStatusFilter.approved:
-        return status == 'APPROVED';
-      case _AdminOrderStatusFilter.shipping:
-        return status == 'SHIPPING';
-      case _AdminOrderStatusFilter.completed:
-        return status == 'COMPLETED';
-      case _AdminOrderStatusFilter.cancelled:
-        return status == 'CANCELLED' || status == 'REJECTED';
-    }
-  }
-}
-
+/// Màn hình danh sách đơn hàng cho Admin/Staff (Pure UI - SOLID SRP)
+/// Quản lý bộ lọc & điều hướng do [AdminOrderListLogic] đảm nhận,
+/// các thao tác duyệt/từ chối/giao hàng do [OrderActionLogic] phụ trách.
 class AdminOrderListPage extends StatefulWidget {
   const AdminOrderListPage({super.key});
 
@@ -46,215 +19,30 @@ class AdminOrderListPage extends StatefulWidget {
 }
 
 class _AdminOrderListPageState extends State<AdminOrderListPage> {
-  _AdminOrderStatusFilter _selectedFilter = _AdminOrderStatusFilter.all;
+  late final AdminOrderListLogic _logic;
 
   @override
   void initState() {
     super.initState();
+    _logic = AdminOrderListLogic();
+    _logic.addListener(_onLogicChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<OrderProvider>().loadOrders(isAdmin: true);
+        _logic.loadOrders(context);
       }
     });
   }
 
-  void _openDetail(Order order) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => OrderDetailPage(order: order),
-      ),
-    ).then((_) {
-      if (mounted) {
-        context.read<OrderProvider>().loadOrders(isAdmin: true);
-      }
-    });
+  void _onLogicChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _handleApprove(BuildContext context, Order order) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Phê duyệt đơn hàng'),
-        content: Text(
-          'Xác nhận phê duyệt đơn hàng #${order.id} của khách hàng ${order.receiverName.isNotEmpty ? order.receiverName : 'Người dùng'}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Phê duyệt'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && context.mounted) {
-      final error = await context.read<OrderProvider>().approveOrder(order.id);
-      if (!context.mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã phê duyệt đơn hàng #${order.id} thành công!'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleReject(BuildContext context, Order order) async {
-    final reasonController = TextEditingController();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Từ chối đơn hàng'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Bạn có chắc muốn từ chối đơn hàng #${order.id}?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Lý do từ chối (tùy chọn)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Từ chối'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && context.mounted) {
-      final error = await context.read<OrderProvider>().rejectOrder(
-            order.id,
-            reason: reasonController.text.trim(),
-          );
-      if (!context.mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã từ chối đơn hàng #${order.id}'),
-            backgroundColor: Colors.orange.shade800,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleShip(BuildContext context, Order order) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Giao hàng'),
-        content: Text(
-          'Chuyển trạng thái đơn hàng #${order.id} sang "Đang giao hàng"?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Xác nhận giao'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && context.mounted) {
-      final error = await context.read<OrderProvider>().shipOrder(order.id);
-      if (!context.mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đơn hàng #${order.id} đang được giao!'),
-            backgroundColor: Colors.blue.shade700,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleComplete(BuildContext context, Order order) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hoàn thành đơn hàng'),
-        content: Text(
-          'Xác nhận đơn hàng #${order.id} đã được giao thành công cho khách hàng?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Hoàn thành'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && context.mounted) {
-      final error = await context.read<OrderProvider>().completeOrder(order.id);
-      if (!context.mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đơn hàng #${order.id} đã hoàn thành!'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-      }
-    }
+  @override
+  void dispose() {
+    _logic.removeListener(_onLogicChanged);
+    _logic.dispose();
+    super.dispose();
   }
 
   @override
@@ -282,7 +70,7 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
               Text(provider.error!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () => provider.loadOrders(isAdmin: true),
+                onPressed: () => _logic.loadOrders(context),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Thử lại'),
               ),
@@ -293,7 +81,7 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
     }
 
     final allOrders = provider.orders;
-    final filteredOrders = allOrders.where(_selectedFilter.matches).toList();
+    final filteredOrders = _logic.getFilteredOrders(allOrders);
 
     return Column(
       children: [
@@ -312,8 +100,8 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
-              children: _AdminOrderStatusFilter.values.map((filter) {
-                final isSelected = filter == _selectedFilter;
+              children: AdminOrderStatusFilter.values.map((filter) {
+                final isSelected = filter == _logic.selectedFilter;
                 final count = allOrders.where(filter.matches).length;
 
                 return Padding(
@@ -335,7 +123,7 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                     showCheckmark: false,
                     onSelected: (selected) {
                       if (selected) {
-                        setState(() => _selectedFilter = filter);
+                        _logic.setFilter(filter);
                       }
                     },
                   ),
@@ -367,9 +155,9 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                _selectedFilter == _AdminOrderStatusFilter.all
+                                _logic.selectedFilter == AdminOrderStatusFilter.all
                                     ? 'Chưa có đơn hàng nào trong hệ thống'
-                                    : 'Không có đơn hàng nào ở trạng thái "${_selectedFilter.label}"',
+                                    : 'Không có đơn hàng nào ở trạng thái "${_logic.selectedFilter.label}"',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -399,7 +187,7 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                         ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () => _openDetail(order),
+                          onTap: () => _logic.openDetail(context, order),
                           child: Padding(
                             padding: const EdgeInsets.all(14),
                             child: Column(
@@ -587,7 +375,12 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                                                   VisualDensity.compact,
                                             ),
                                             onPressed: () =>
-                                                _handleReject(context, order),
+                                                OrderActionLogic.handleReject(
+                                              context,
+                                              order,
+                                              onSuccess: () =>
+                                                  _logic.loadOrders(context),
+                                            ),
                                             child: const Text('Từ chối'),
                                           ),
                                           const SizedBox(width: 8),
@@ -604,7 +397,12 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                                                   VisualDensity.compact,
                                             ),
                                             onPressed: () =>
-                                                _handleApprove(context, order),
+                                                OrderActionLogic.handleApprove(
+                                              context,
+                                              order,
+                                              onSuccess: () =>
+                                                  _logic.loadOrders(context),
+                                            ),
                                             child: const Text('Duyệt'),
                                           ),
                                         ] else if (status == 'APPROVED') ...[
@@ -626,7 +424,12 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                                             ),
                                             label: const Text('Giao hàng'),
                                             onPressed: () =>
-                                                _handleShip(context, order),
+                                                OrderActionLogic.handleShip(
+                                              context,
+                                              order,
+                                              onSuccess: () =>
+                                                  _logic.loadOrders(context),
+                                            ),
                                           ),
                                         ] else if (status == 'SHIPPING') ...[
                                           FilledButton.icon(
@@ -647,7 +450,12 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                                             ),
                                             label: const Text('Hoàn thành'),
                                             onPressed: () =>
-                                                _handleComplete(context, order),
+                                                OrderActionLogic.handleComplete(
+                                              context,
+                                              order,
+                                              onSuccess: () =>
+                                                  _logic.loadOrders(context),
+                                            ),
                                           ),
                                         ] else ...[
                                           const Icon(

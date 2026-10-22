@@ -16,6 +16,9 @@ import '../features/orders/presentation/providers/order_provider.dart';
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
+  /// Thông báo chuyển tab trên HomeShell (Customer: 0=Sách, 1=Yêu thích, 2=Giỏ hàng, 3=Đơn hàng | Admin: 0=Sách, 1=Đơn hàng, 2=Yêu thích)
+  static final ValueNotifier<int?> tabSwitcher = ValueNotifier<int?>(null);
+
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -39,6 +42,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    HomeShell.tabSwitcher.addListener(_onTabSwitcherChanged);
     // Nạp dữ liệu của tài khoản hiện tại sau frame đầu tiên để tránh lỗi setState trong lúc build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -46,6 +50,20 @@ class _HomeShellState extends State<HomeShell> {
       context.read<FavoriteProvider>().load();
       context.read<OrderProvider>().reset();
     });
+  }
+
+  void _onTabSwitcherChanged() {
+    final target = HomeShell.tabSwitcher.value;
+    if (target != null && mounted) {
+      setState(() => _index = target);
+      HomeShell.tabSwitcher.value = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    HomeShell.tabSwitcher.removeListener(_onTabSwitcherChanged);
+    super.dispose();
   }
 
   @override

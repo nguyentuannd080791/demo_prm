@@ -36,19 +36,32 @@ class BookCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Ảnh sách gọn gàng
-              Container(
-                width: 58,
-                height: 76,
-                decoration: BoxDecoration(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 58,
+                  height: 76,
                   color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.menu_book_rounded,
-                    size: 28,
-                    color: theme.colorScheme.primary,
-                  ),
+                  child: (book.imageURL != null &&
+                          book.imageURL!.trim().isNotEmpty)
+                      ? Image.network(
+                          book.imageURL!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Center(
+                            child: Icon(
+                              Icons.menu_book_rounded,
+                              size: 28,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        )
+                      : Center(
+                          child: Icon(
+                            Icons.menu_book_rounded,
+                            size: 28,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),

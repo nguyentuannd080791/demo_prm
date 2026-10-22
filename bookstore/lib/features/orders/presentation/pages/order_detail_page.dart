@@ -7,10 +7,11 @@ import '../../../../core/utils/date_formatter.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../books/presentation/providers/book_provider.dart';
 import '../../domain/entities/order.dart';
-import '../providers/order_provider.dart';
-import '../widgets/cancel_order_dialog.dart';
+import '../logic/order_detail_logic.dart';
 import '../widgets/order_status_badge.dart';
 
+/// Màn hình chi tiết đơn hàng (Pure UI - SOLID SRP)
+/// Quản lý tải dữ liệu & thao tác đơn hàng được ủy quyền cho [OrderDetailLogic].
 class OrderDetailPage extends StatefulWidget {
   const OrderDetailPage({super.key, required this.order});
 
@@ -21,169 +22,20 @@ class OrderDetailPage extends StatefulWidget {
 }
 
 class _OrderDetailPageState extends State<OrderDetailPage> {
+  static const _logic = OrderDetailLogic();
   late Future<Order> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final bookProvider = context.read<BookProvider>();
-      if (bookProvider.books.isEmpty) {
-        bookProvider.loadBooks();
-      }
+    _future = _logic.fetchOrder(context, widget.order.id);
+    _logic.init(context);
+  }
+
+  void _retry() {
+    setState(() {
+      _future = _logic.fetchOrder(context, widget.order.id);
     });
-  }
-
-  Future<Order> _load() {
-    return context.read<OrderProvider>().fetchOrder(widget.order.id);
-  }
-
-  void _retry() => setState(() => _future = _load());
-
-  Future<void> _handleCancel(Order order) async {
-    final result = await CancelOrderDialog.show(context, order.id);
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã hủy đơn hàng #${order.id} thành công'),
-          backgroundColor: Colors.green.shade700,
-        ),
-      );
-      _retry();
-    }
-  }
-
-  Future<void> _handleApprove(Order order) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Phê duyệt đơn hàng'),
-        content: Text(
-          'Xác nhận phê duyệt đơn hàng #${order.id}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Phê duyệt'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      final error = await context.read<OrderProvider>().approveOrder(order.id);
-      if (!mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã phê duyệt đơn hàng #${order.id} thành công!'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-        _retry();
-      }
-    }
-  }
-
-  Future<void> _handleReject(Order order) async {
-    final reasonController = TextEditingController();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Từ chối đơn hàng'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Bạn có chắc muốn từ chối đơn hàng #${order.id}?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Lý do từ chối (tùy chọn)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Từ chối'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      final error = await context.read<OrderProvider>().rejectOrder(
-            order.id,
-            reason: reasonController.text.trim(),
-          );
-      if (!mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã từ chối đơn hàng #${order.id}'),
-            backgroundColor: Colors.orange.shade800,
-          ),
-        );
-        _retry();
-      }
-    }
-  }
-
-  Future<void> _handleShip(Order order) async {
-    final error = await context.read<OrderProvider>().shipOrder(order.id);
-    if (!mounted) return;
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đơn hàng #${order.id} đang được giao!'),
-          backgroundColor: Colors.blue.shade700,
-        ),
-      );
-      _retry();
-    }
-  }
-
-  Future<void> _handleComplete(Order order) async {
-    final error = await context.read<OrderProvider>().completeOrder(order.id);
-    if (!mounted) return;
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đơn hàng #${order.id} đã hoàn thành!'),
-          backgroundColor: Colors.green.shade700,
-        ),
-      );
-      _retry();
-    }
   }
 
   @override
@@ -212,11 +64,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           return _OrderDetailBody(
             order: order,
             isAdmin: isAdmin,
-            onCancelOrder: () => _handleCancel(order),
-            onApproveOrder: () => _handleApprove(order),
-            onRejectOrder: () => _handleReject(order),
-            onShipOrder: () => _handleShip(order),
-            onCompleteOrder: () => _handleComplete(order),
+            onCancelOrder: () => _logic.cancelOrder(context, order, onSuccess: _retry),
+            onApproveOrder: () => _logic.approveOrder(context, order, onSuccess: _retry),
+            onRejectOrder: () => _logic.rejectOrder(context, order, onSuccess: _retry),
+            onShipOrder: () => _logic.shipOrder(context, order, onSuccess: _retry),
+            onCompleteOrder: () => _logic.completeOrder(context, order, onSuccess: _retry),
           );
         },
       ),

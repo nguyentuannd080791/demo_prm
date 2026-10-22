@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../domain/entities/order.dart';
-import 'cancel_order_dialog.dart';
-import 'order_status_badge.dart';
+import '../logic/order_action_logic.dart';
+import '../widgets/order_status_badge.dart';
 
 class OrderTile extends StatelessWidget {
   const OrderTile({
@@ -17,19 +17,6 @@ class OrderTile extends StatelessWidget {
   final Order order;
   final VoidCallback onTap;
   final VoidCallback? onOrderCancelled;
-
-  Future<void> _handleCancel(BuildContext context) async {
-    final result = await CancelOrderDialog.show(context, order.id);
-    if (result == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã hủy đơn hàng #${order.id} thành công'),
-          backgroundColor: Colors.green.shade700,
-        ),
-      );
-      onOrderCancelled?.call();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +197,11 @@ class OrderTile extends StatelessWidget {
                             ),
                             visualDensity: VisualDensity.compact,
                           ),
-                          onPressed: () => _handleCancel(context),
+                          onPressed: () => OrderActionLogic.handleCancel(
+                            context,
+                            order,
+                            onSuccess: onOrderCancelled,
+                          ),
                           child: const Text('Hủy đơn'),
                         ),
                         const SizedBox(width: 8),

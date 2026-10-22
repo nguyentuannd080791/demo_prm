@@ -3,14 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../cart/domain/entities/cart_item.dart';
-import '../../../cart/presentation/providers/cart_provider.dart';
 import '../../../favorites/presentation/providers/favorite_provider.dart';
-import '../../../orders/presentation/pages/checkout_page.dart';
 import '../../domain/entities/book.dart';
+import '../logic/book_detail_logic.dart';
 import '../providers/book_provider.dart';
-import 'add_book_page.dart';
 
+/// Màn hình chi tiết sách (Pure UI - SOLID SRP)
+/// Quản lý số lượng, giỏ hàng, mua ngay, chỉnh sửa & xóa được ủy quyền cho [BookDetailLogic].
 class BookDetailPage extends StatefulWidget {
   const BookDetailPage({super.key, required this.book});
 
@@ -21,113 +20,24 @@ class BookDetailPage extends StatefulWidget {
 }
 
 class _BookDetailPageState extends State<BookDetailPage> {
-  int _quantity = 1;
+  late final BookDetailLogic _logic;
 
-  void _addToCart(Book book, {bool showToast = true}) {
-    final cart = context.read<CartProvider>().cart;
-    final itemIndex = cart.items.indexWhere((e) => e.bookId == book.bookId);
-    final inCart = itemIndex != -1 ? cart.items[itemIndex].quantity : 0;
-
-    if (inCart + _quantity > book.stockQuantity) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              inCart > 0
-                  ? 'Giỏ hàng đã có $inCart cuốn. Tồn kho chỉ còn ${book.stockQuantity} cuốn.'
-                  : 'Không thể mua quá số lượng tồn kho (${book.stockQuantity} cuốn).',
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      return;
-    }
-
-    context.read<CartProvider>().add(
-      CartItem(
-        bookId: book.bookId,
-        bookName: book.bookName,
-        price: book.price,
-        quantity: _quantity,
-      ),
-    );
-    if (showToast) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Đã thêm $_quantity cuốn vào giỏ hàng'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-    }
+  @override
+  void initState() {
+    super.initState();
+    _logic = BookDetailLogic();
+    _logic.addListener(_onLogicChanged);
   }
 
-  Future<void> _buyNow(Book book) async {
-    _addToCart(book, showToast: false);
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const CheckoutPage()),
-    );
-    if (mounted) {
-      final isAdmin = context.read<AuthProvider>().user?.isAdmin ?? false;
-      await context.read<BookProvider>().loadBooks(isAdmin: isAdmin);
-    }
+  void _onLogicChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _confirmDelete(BuildContext context, Book book) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Xác nhận xóa sách'),
-        content: Text(
-          'Bạn có chắc chắn muốn xóa cuốn sách "${book.bookName}" khỏi hệ thống? Thao tác này không thể hoàn tác.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && context.mounted) {
-      try {
-        await context.read<BookProvider>().deleteBook(book.bookId);
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã xóa thành công sách "${book.bookName}"'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-        Navigator.of(context).pop();
-      } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Xóa sách thất bại: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    }
-  }
-
-  void _editBook(BuildContext context, Book book) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AddBookPage(book: book),
-      ),
-    );
+  @override
+  void dispose() {
+    _logic.removeListener(_onLogicChanged);
+    _logic.dispose();
+    super.dispose();
   }
 
   @override
@@ -146,13 +56,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
     final book = bookFromProvider ?? widget.book;
 
     // Tự động đồng bộ số lượng chọn theo tồn kho thực tế nếu sách vừa bị trừ kho
-    if (book.stockQuantity <= 0 && _quantity != 0) {
-      _quantity = 0;
-    } else if (book.stockQuantity > 0 && _quantity > book.stockQuantity) {
-      _quantity = book.stockQuantity;
-    } else if (book.stockQuantity > 0 && _quantity == 0) {
-      _quantity = 1;
-    }
+    _logic.syncQuantityWithStock(book.stockQuantity);
 
     final isFav = context.select<FavoriteProvider, bool>(
       (fav) => fav.isFavorite(book.bookId),
@@ -169,8 +73,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 isFav ? Icons.favorite : Icons.favorite_border,
                 color: isFav ? Colors.red : null,
               ),
-              onPressed: () =>
-                  context.read<FavoriteProvider>().toggleFavorite(book.bookId),
+              onPressed: () => _logic.toggleFavorite(context, book.bookId),
             ),
         ],
       ),
@@ -201,7 +104,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: () => _confirmDelete(context, book),
+                        onPressed: () => _logic.confirmDelete(context, book),
                         icon: const Icon(Icons.delete_outline),
                         label: const Text('Xóa sách'),
                       ),
@@ -215,7 +118,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: () => _editBook(context, book),
+                        onPressed: () => _logic.openEdit(context, book),
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text('Chỉnh sửa'),
                       ),
@@ -228,7 +131,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: (book.status && book.stockQuantity > 0)
-                            ? () => _addToCart(book)
+                            ? () => _logic.addToCart(context, book)
                             : null,
                         icon: const Icon(Icons.add_shopping_cart),
                         label: const Text('Thêm vào giỏ'),
@@ -238,7 +141,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: (book.status && book.stockQuantity > 0)
-                            ? () => _buyNow(book)
+                            ? () => _logic.buyNow(context, book)
                             : null,
                         icon: Icon(
                           (book.status && book.stockQuantity > 0)
@@ -278,10 +181,28 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   ),
                 ],
               ),
-              child: Icon(
-                Icons.menu_book_rounded,
-                size: 80,
-                color: theme.colorScheme.primary,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: (book.imageURL != null &&
+                        book.imageURL!.trim().isNotEmpty)
+                    ? Image.network(
+                        book.imageURL!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Center(
+                          child: Icon(
+                            Icons.menu_book_rounded,
+                            size: 80,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Icon(
+                          Icons.menu_book_rounded,
+                          size: 80,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -357,10 +278,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
                         'Kho: ${book.stockQuantity} cuốn',
                         style: TextStyle(
                           fontSize: 12.5,
-                          color: _quantity >= book.stockQuantity
+                          color: _logic.quantity >= book.stockQuantity
                               ? Colors.orange.shade800
                               : theme.colorScheme.outline,
-                          fontWeight: _quantity >= book.stockQuantity
+                          fontWeight: _logic.quantity >= book.stockQuantity
                               ? FontWeight.w600
                               : FontWeight.normal,
                         ),
@@ -371,15 +292,15 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   IconButton.outlined(
                     iconSize: 18,
                     tooltip: 'Giảm số lượng',
-                    onPressed: _quantity > 1
-                        ? () => setState(() => _quantity--)
+                    onPressed: _logic.quantity > 1
+                        ? () => _logic.decrementQuantity()
                         : null,
                     icon: const Icon(Icons.remove),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      '$_quantity',
+                      '${_logic.quantity}',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -387,11 +308,11 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   ),
                   IconButton.outlined(
                     iconSize: 18,
-                    tooltip: _quantity >= book.stockQuantity
+                    tooltip: _logic.quantity >= book.stockQuantity
                         ? 'Đã đạt giới hạn tồn kho (${book.stockQuantity})'
                         : 'Thêm số lượng',
-                    onPressed: _quantity < book.stockQuantity
-                        ? () => setState(() => _quantity++)
+                    onPressed: _logic.quantity < book.stockQuantity
+                        ? () => _logic.incrementQuantity(book)
                         : null,
                     icon: const Icon(Icons.add),
                   ),

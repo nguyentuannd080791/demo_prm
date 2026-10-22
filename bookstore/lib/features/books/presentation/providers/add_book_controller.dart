@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../domain/entities/book.dart';
@@ -16,6 +17,7 @@ class AddBookController extends ChangeNotifier {
   final priceController = TextEditingController();
   final stockQuantityController = TextEditingController(text: '10');
   final summaryController = TextEditingController();
+  final imageUrlController = TextEditingController();
 
   bool _status = true;
   bool _isSubmitting = false;
@@ -37,6 +39,7 @@ class AddBookController extends ChangeNotifier {
     priceController.text = book.price.toStringAsFixed(0);
     stockQuantityController.text = book.stockQuantity.toString();
     summaryController.text = book.summary;
+    imageUrlController.text = book.imageURL ?? '';
     _status = book.status;
   }
 
@@ -60,6 +63,7 @@ class AddBookController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final imageUrlText = imageUrlController.text.trim();
       final params = CreateBookParams(
         bookName: nameController.text.trim(),
         price: price,
@@ -68,6 +72,7 @@ class AddBookController extends ChangeNotifier {
         summary: summaryController.text.trim(),
         stockQuantity: stock,
         status: _status,
+        imageURL: imageUrlText.isEmpty ? null : imageUrlText,
       );
 
       if (editBookId != null) {
@@ -81,6 +86,56 @@ class AddBookController extends ChangeNotifier {
     }
   }
 
+  /// Xử lý gửi dữ liệu, hiển thị SnackBar thông báo và đóng trang (SOLID SRP)
+  Future<void> handleSubmit(BuildContext context, {int? editBookId}) async {
+    final isEditing = editBookId != null;
+    try {
+      final bookProvider = context.read<BookProvider>();
+      final book = await submit(bookProvider, editBookId: editBookId);
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isEditing
+                      ? 'Đã cập nhật thành công sách "${book.bookName}"!'
+                      : 'Đã thêm thành công sách "${book.bookName}"!',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Navigator.of(context).pop(true);
+    } on AppException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${isEditing ? "Cập nhật" : "Thêm"} sách thất bại: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
     nameController.dispose();
@@ -89,6 +144,7 @@ class AddBookController extends ChangeNotifier {
     priceController.dispose();
     stockQuantityController.dispose();
     summaryController.dispose();
+    imageUrlController.dispose();
     super.dispose();
   }
 }

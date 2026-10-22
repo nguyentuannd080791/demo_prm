@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
 import 'package:flutter/services.dart';
 
-import '../../../../core/error/app_exception.dart';
 import '../../domain/entities/book.dart';
 import '../providers/add_book_controller.dart';
-import '../providers/book_provider.dart';
 import '../widgets/book_status_card.dart';
 import '../widgets/book_text_field.dart';
 import '../widgets/submit_book_button.dart';
@@ -42,57 +38,6 @@ class _AddBookPageState extends State<AddBookPage> {
     super.dispose();
   }
 
-  Future<void> _handleSubmit() async {
-    try {
-      final bookProvider = context.read<BookProvider>();
-      final book = await _controller.submit(
-        bookProvider,
-        editBookId: widget.book?.bookId,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _isEditing
-                      ? 'Đã cập nhật thành công sách "${book.bookName}"!'
-                      : 'Đã thêm thành công sách "${book.bookName}"!',
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-
-      Navigator.of(context).pop(true);
-    } on AppException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_isEditing ? "Cập nhật" : "Thêm"} sách thất bại: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +166,80 @@ class _AddBookPageState extends State<AddBookPage> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+
+                // Đường dẫn hình ảnh (Image URL)
+                BookTextField(
+                  controller: _controller.imageUrlController,
+                  labelText: 'Đường dẫn ảnh bìa (Image URL)',
+                  hintText: 'https://example.com/anh-bia-sach.jpg',
+                  prefixIcon: Icons.image_outlined,
+                  keyboardType: TextInputType.url,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 8),
+
+                // Xem trước ảnh nếu có URL
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller.imageUrlController,
+                  builder: (context, value, _) {
+                    final url = value.text.trim();
+                    if (url.isEmpty || !url.startsWith('http')) {
+                      return const SizedBox.shrink();
+                    }
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outlineVariant
+                              .withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              url,
+                              width: 50,
+                              height: 65,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                width: 50,
+                                height: 65,
+                                color: Colors.grey.shade200,
+                                child: const Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 24,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Xem trước ảnh bìa sách',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
 
                 // Thanh mở bán
                 ListenableBuilder(
@@ -238,7 +256,10 @@ class _AddBookPageState extends State<AddBookPage> {
                   listenable: _controller,
                   builder: (context, _) => SubmitBookButton(
                     isSubmitting: _controller.isSubmitting,
-                    onPressed: _handleSubmit,
+                    onPressed: () => _controller.handleSubmit(
+                      context,
+                      editBookId: widget.book?.bookId,
+                    ),
                     label: _isEditing ? 'Lưu thay đổi' : 'Tạo sách mới',
                     icon: _isEditing ? Icons.save_outlined : Icons.add_task,
                   ),

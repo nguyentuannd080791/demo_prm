@@ -1,38 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../domain/entities/order.dart';
+import '../logic/order_list_logic.dart';
 import '../providers/order_provider.dart';
 import '../widgets/order_tile.dart';
-import 'order_detail_page.dart';
 
-enum _OrderStatusFilter {
-  all('Tất cả'),
-  pending('Chờ duyệt'),
-  shipping('Đang giao'),
-  completed('Hoàn thành'),
-  cancelled('Đã hủy');
-
-  const _OrderStatusFilter(this.label);
-  final String label;
-
-  bool matches(Order order) {
-    final status = order.status.toUpperCase().trim();
-    switch (this) {
-      case _OrderStatusFilter.all:
-        return true;
-      case _OrderStatusFilter.pending:
-        return status == 'PENDING';
-      case _OrderStatusFilter.shipping:
-        return status == 'APPROVED' || status == 'SHIPPING';
-      case _OrderStatusFilter.completed:
-        return status == 'COMPLETED';
-      case _OrderStatusFilter.cancelled:
-        return status == 'CANCELLED' || status == 'REJECTED';
-    }
-  }
-}
-
+/// Màn hình danh sách đơn hàng cho Khách hàng (Pure UI - SOLID SRP)
+/// Quản lý bộ lọc & điều hướng do [OrderListLogic] đảm nhận.
 class OrderListPage extends StatefulWidget {
   const OrderListPage({super.key});
 
@@ -41,20 +15,28 @@ class OrderListPage extends StatefulWidget {
 }
 
 class _OrderListPageState extends State<OrderListPage> {
-  _OrderStatusFilter _selectedFilter = _OrderStatusFilter.all;
+  late final OrderListLogic _logic;
 
   @override
   void initState() {
     super.initState();
+    _logic = OrderListLogic();
+    _logic.addListener(_onLogicChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<OrderProvider>().loadOrders();
+      if (mounted) _logic.loadOrders(context);
     });
   }
 
-  void _openDetail(Order order) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => OrderDetailPage(order: order)),
-    );
+  void _onLogicChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _logic.removeListener(_onLogicChanged);
+    _logic.dispose();
+    super.dispose();
   }
 
   @override
@@ -69,12 +51,12 @@ class _OrderListPageState extends State<OrderListPage> {
     if (provider.error != null && provider.orders.isEmpty) {
       return _ErrorView(
         message: provider.error!,
-        onRetry: provider.loadOrders,
+        onRetry: () => _logic.loadOrders(context),
       );
     }
 
     final allOrders = provider.orders;
-    final filteredOrders = allOrders.where(_selectedFilter.matches).toList();
+    final filteredOrders = _logic.getFilteredOrders(allOrders);
 
     return Column(
       children: [
@@ -93,8 +75,8 @@ class _OrderListPageState extends State<OrderListPage> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
-              children: _OrderStatusFilter.values.map((filter) {
-                final isSelected = filter == _selectedFilter;
+              children: OrderStatusFilter.values.map((filter) {
+                final isSelected = filter == _logic.selectedFilter;
                 final count = allOrders.where(filter.matches).length;
 
                 return Padding(
@@ -117,7 +99,7 @@ class _OrderListPageState extends State<OrderListPage> {
                     showCheckmark: false,
                     onSelected: (selected) {
                       if (selected) {
-                        setState(() => _selectedFilter = filter);
+                        _logic.setFilter(filter);
                       }
                     },
                   ),
@@ -130,7 +112,7 @@ class _OrderListPageState extends State<OrderListPage> {
         // Danh sách đơn hàng
         Expanded(
           child: RefreshIndicator(
-            onRefresh: provider.loadOrders,
+            onRefresh: () async => _logic.loadOrders(context),
             child: filteredOrders.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -149,18 +131,18 @@ class _OrderListPageState extends State<OrderListPage> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                _selectedFilter == _OrderStatusFilter.all
+                                _logic.selectedFilter == OrderStatusFilter.all
                                     ? 'Chưa có đơn hàng nào'
-                                    : 'Không có đơn hàng "${_selectedFilter.label}"',
+                                    : 'Không có đơn hàng "${_logic.selectedFilter.label}"',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                              if (_selectedFilter != _OrderStatusFilter.all) ...[
+                              if (_logic.selectedFilter != OrderStatusFilter.all) ...[
                                 const SizedBox(height: 8),
                                 TextButton(
-                                  onPressed: () => setState(
-                                      () => _selectedFilter = _OrderStatusFilter.all),
+                                  onPressed: () =>
+                                      _logic.setFilter(OrderStatusFilter.all),
                                   child: const Text('Xem tất cả đơn hàng'),
                                 ),
                               ],
@@ -178,8 +160,8 @@ class _OrderListPageState extends State<OrderListPage> {
                       final order = filteredOrders[index];
                       return OrderTile(
                         order: order,
-                        onTap: () => _openDetail(order),
-                        onOrderCancelled: provider.loadOrders,
+                        onTap: () => _logic.openDetail(context, order),
+                        onOrderCancelled: () => _logic.loadOrders(context),
                       );
                     },
                   ),

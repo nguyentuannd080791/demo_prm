@@ -9,6 +9,7 @@ class CreateBookParams {
     this.isbn,
     this.categoryId = 1,
     this.stockQuantity = 50,
+    this.imageURL,
   });
 
   final String bookName;
@@ -20,6 +21,7 @@ class CreateBookParams {
   final String? isbn;
   final int categoryId;
   final int stockQuantity;
+  final String? imageURL;
 
   /// Chuyển đổi sang Map JSON tương thích với các endpoint POST / PUT /api/books của backend
   Map<String, dynamic> toJson() => {
@@ -34,6 +36,10 @@ class CreateBookParams {
             '978-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
         'categoryId': categoryId,
         'stockQuantity': stockQuantity,
+        if (imageURL != null && imageURL!.trim().isNotEmpty) ...{
+          'imageURL': imageURL!.trim(),
+          'imageUrl': imageURL!.trim(),
+        },
         'status': (status && stockQuantity > 0) ? 'ACTIVE' : 'INACTIVE',
       };
 }

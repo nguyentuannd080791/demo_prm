@@ -1,29 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../books/domain/entities/book.dart';
-import '../../../books/presentation/pages/book_detail_page.dart';
 import '../../../books/presentation/providers/book_provider.dart';
 import '../../../books/presentation/widgets/book_card.dart';
+import '../logic/favorite_logic.dart';
 import '../providers/favorite_provider.dart';
 
+/// Màn hình sách yêu thích (Pure UI - SOLID SRP)
+/// Quản lý lọc sách yêu thích, làm mới và điều hướng do [FavoriteLogic] đảm nhận.
 class FavoritePage extends StatelessWidget {
   const FavoritePage({super.key});
-
-  void _openDetail(BuildContext context, Book book) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => BookDetailPage(book: book)),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final bookProvider = context.watch<BookProvider>();
     final favoriteProvider = context.watch<FavoriteProvider>();
 
-    final favoriteBooks = bookProvider.books
-        .where((book) => favoriteProvider.isFavorite(book.bookId))
-        .toList();
+    final favoriteBooks =
+        FavoriteLogic.getFavoriteBooks(bookProvider.books, favoriteProvider);
 
     if (favoriteBooks.isEmpty) {
       return Center(
@@ -59,12 +53,7 @@ class FavoritePage extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        await Future.wait([
-          bookProvider.loadBooks(),
-          favoriteProvider.load(),
-        ]);
-      },
+      onRefresh: () => FavoriteLogic.refresh(context),
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: favoriteBooks.length,
@@ -73,7 +62,7 @@ class FavoritePage extends StatelessWidget {
           final book = favoriteBooks[index];
           return BookCard(
             book: book,
-            onTap: () => _openDetail(context, book),
+            onTap: () => FavoriteLogic.openDetail(context, book),
           );
         },
       ),
