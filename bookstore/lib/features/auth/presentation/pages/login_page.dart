@@ -18,6 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  bool _obscurePassword = true;
   bool _isSubmitting = false;
   String? _error;
 
@@ -123,19 +124,34 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  // Tên đăng nhập hoặc Email
                   AppTextField(
                     controller: _usernameController,
-                    label: 'Tên đăng nhập',
+                    label: 'Tên đăng nhập hoặc Email',
                     prefixIcon: const Icon(Icons.person_outline),
+                    textInputAction: TextInputAction.next,
                     validator: (value) =>
-                        Validators.required(value, 'tên đăng nhập'),
+                        Validators.required(value, 'tên đăng nhập hoặc email'),
                   ),
                   const SizedBox(height: 16),
+
+                  // Mật khẩu
                   AppTextField(
                     controller: _passwordController,
                     label: 'Mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline),
-                    obscureText: true,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () => setState(
+                        () => _obscurePassword = !_obscurePassword,
+                      ),
+                    ),
                     validator: (value) =>
                         Validators.required(value, 'mật khẩu'),
                   ),
@@ -162,6 +178,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ],
                   const SizedBox(height: 24),
+
+                  // Nút Đăng nhập
                   FilledButton(
                     onPressed: _isSubmitting ? null : _submit,
                     style: FilledButton.styleFrom(

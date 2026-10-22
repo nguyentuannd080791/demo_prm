@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../cart/domain/entities/cart_item.dart';
 import '../../../cart/presentation/providers/cart_provider.dart';
 import '../../../favorites/presentation/providers/favorite_provider.dart';
 import '../../../orders/presentation/pages/checkout_page.dart';
 import '../../domain/entities/book.dart';
+import '../providers/book_provider.dart';
+import 'add_book_page.dart';
 
 class BookDetailPage extends StatefulWidget {
   const BookDetailPage({super.key, required this.book});
@@ -20,12 +23,33 @@ class BookDetailPage extends StatefulWidget {
 class _BookDetailPageState extends State<BookDetailPage> {
   int _quantity = 1;
 
-  void _addToCart({bool showToast = true}) {
+  void _addToCart(Book book, {bool showToast = true}) {
+    final cart = context.read<CartProvider>().cart;
+    final itemIndex = cart.items.indexWhere((e) => e.bookId == book.bookId);
+    final inCart = itemIndex != -1 ? cart.items[itemIndex].quantity : 0;
+
+    if (inCart + _quantity > book.stockQuantity) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              inCart > 0
+                  ? 'Giỏ hàng đã có $inCart cuốn. Tồn kho chỉ còn ${book.stockQuantity} cuốn.'
+                  : 'Không thể mua quá số lượng tồn kho (${book.stockQuantity} cuốn).',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return;
+    }
+
     context.read<CartProvider>().add(
       CartItem(
-        bookId: widget.book.bookId,
-        bookName: widget.book.bookName,
-        price: widget.book.price,
+        bookId: book.bookId,
+        bookName: book.bookName,
+        price: book.price,
         quantity: _quantity,
       ),
     );
@@ -36,21 +60,100 @@ class _BookDetailPageState extends State<BookDetailPage> {
           SnackBar(
             content: Text('Đã thêm $_quantity cuốn vào giỏ hàng'),
             duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
           ),
         );
     }
   }
 
-  void _buyNow() {
-    _addToCart(showToast: false);
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => const CheckoutPage()));
+  Future<void> _buyNow(Book book) async {
+    _addToCart(book, showToast: false);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const CheckoutPage()),
+    );
+    if (mounted) {
+      final isAdmin = context.read<AuthProvider>().user?.isAdmin ?? false;
+      await context.read<BookProvider>().loadBooks(isAdmin: isAdmin);
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context, Book book) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Xác nhận xóa sách'),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa cuốn sách "${book.bookName}" khỏi hệ thống? Thao tác này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      try {
+        await context.read<BookProvider>().deleteBook(book.bookId);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xóa thành công sách "${book.bookName}"'),
+            backgroundColor: Colors.green.shade700,
+          ),
+        );
+        Navigator.of(context).pop();
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Xóa sách thất bại: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _editBook(BuildContext context, Book book) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AddBookPage(book: book),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final book = widget.book;
+    final user = context.watch<AuthProvider>().user;
+    final isAdmin = user?.isAdmin ?? false;
+
+    // Lấy thông tin sách mới nhất từ BookProvider nếu vừa được sửa
+    final bookFromProvider = context.select<BookProvider, Book?>(
+      (p) => p.books.cast<Book?>().firstWhere(
+            (b) => b?.bookId == widget.book.bookId,
+            orElse: () => null,
+          ),
+    );
+    final book = bookFromProvider ?? widget.book;
+
+    // Tự động đồng bộ số lượng chọn theo tồn kho thực tế nếu sách vừa bị trừ kho
+    if (book.stockQuantity <= 0 && _quantity != 0) {
+      _quantity = 0;
+    } else if (book.stockQuantity > 0 && _quantity > book.stockQuantity) {
+      _quantity = book.stockQuantity;
+    } else if (book.stockQuantity > 0 && _quantity == 0) {
+      _quantity = 1;
+    }
+
     final isFav = context.select<FavoriteProvider, bool>(
       (fav) => fav.isFavorite(book.bookId),
     );
@@ -59,15 +162,16 @@ class _BookDetailPageState extends State<BookDetailPage> {
       appBar: AppBar(
         title: Text(book.bookName),
         actions: [
-          IconButton(
-            tooltip: isFav ? 'Bỏ yêu thích' : 'Yêu thích',
-            icon: Icon(
-              isFav ? Icons.favorite : Icons.favorite_border,
-              color: isFav ? Colors.red : null,
+          if (!isAdmin)
+            IconButton(
+              tooltip: isFav ? 'Bỏ yêu thích' : 'Yêu thích',
+              icon: Icon(
+                isFav ? Icons.favorite : Icons.favorite_border,
+                color: isFav ? Colors.red : null,
+              ),
+              onPressed: () =>
+                  context.read<FavoriteProvider>().toggleFavorite(book.bookId),
             ),
-            onPressed: () =>
-                context.read<FavoriteProvider>().toggleFavorite(book.bookId),
-          ),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -83,29 +187,75 @@ class _BookDetailPageState extends State<BookDetailPage> {
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: book.status ? () => _addToCart() : null,
-                  icon: const Icon(Icons.add_shopping_cart),
-                  label: const Text('Thêm vào giỏ'),
+          child: isAdmin
+              // Admin: Các thao tác Quản lý (Sửa, Xóa) - Không thể đặt sách
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => _confirmDelete(context, book),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Xóa sách'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => _editBook(context, book),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Chỉnh sửa'),
+                      ),
+                    ),
+                  ],
+                )
+              // Khách hàng: Mua hàng bình thường
+              : Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (book.status && book.stockQuantity > 0)
+                            ? () => _addToCart(book)
+                            : null,
+                        icon: const Icon(Icons.add_shopping_cart),
+                        label: const Text('Thêm vào giỏ'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: (book.status && book.stockQuantity > 0)
+                            ? () => _buyNow(book)
+                            : null,
+                        icon: Icon(
+                          (book.status && book.stockQuantity > 0)
+                              ? Icons.shopping_bag_outlined
+                              : (!book.status
+                                  ? Icons.pause_circle_outline
+                                  : Icons.remove_shopping_cart_outlined),
+                        ),
+                        label: Text(
+                          (book.status && book.stockQuantity > 0)
+                              ? 'Mua ngay'
+                              : (!book.status ? 'Dừng bán' : 'Hết hàng'),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: book.status ? _buyNow : null,
-                  icon: Icon(
-                    book.status
-                        ? Icons.shopping_bag_outlined
-                        : Icons.remove_shopping_cart_outlined,
-                  ),
-                  label: Text(book.status ? 'Mua ngay' : 'Hết hàng'),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
       body: ListView(
@@ -144,132 +294,191 @@ class _BookDetailPageState extends State<BookDetailPage> {
           ),
           const SizedBox(height: 8),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 CurrencyFormatter.vnd(book.price),
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.titleLarge?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: book.status
-                      ? Colors.green.withValues(alpha: 0.12)
-                      : Colors.red.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  book.status ? 'Đang bán' : 'Hết hàng',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: book.status ? Colors.green[800] : Colors.red[800],
-                  ),
-                ),
+              const Spacer(),
+              Builder(
+                builder: (context) {
+                  final String statusText;
+                  final Color textColor;
+                  final Color bgColor;
+
+                  if (!book.status) {
+                    statusText = 'Dừng bán';
+                    textColor = Colors.grey.shade800;
+                    bgColor = Colors.grey.withValues(alpha: 0.18);
+                  } else if (book.stockQuantity <= 0) {
+                    statusText = 'Hết hàng';
+                    textColor = Colors.red.shade800;
+                    bgColor = Colors.red.withValues(alpha: 0.12);
+                  } else {
+                    statusText = 'Đang bán';
+                    textColor = Colors.green.shade800;
+                    bgColor = Colors.green.withValues(alpha: 0.12);
+                  }
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Số lượng
-          if (book.status) ...[
-            Row(
-              children: [
-                Text('Số lượng:', style: theme.textTheme.titleMedium),
-                const Spacer(),
-                IconButton.outlined(
-                  iconSize: 18,
-                  onPressed: _quantity > 1
-                      ? () => setState(() => _quantity--)
-                      : null,
-                  icon: const Icon(Icons.remove),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    '$_quantity',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton.outlined(
-                  iconSize: 18,
-                  onPressed: () => setState(() => _quantity++),
-                  icon: const Icon(Icons.add),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-          ] else ...[
-            Row(
-              children: [
-                Text(
-                  'Số lượng:',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-                const Spacer(),
-                const IconButton.outlined(
-                  iconSize: 18,
-                  onPressed: null,
-                  icon: Icon(Icons.remove),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    '0',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.outline,
-                    ),
-                  ),
-                ),
-                const IconButton.outlined(
-                  iconSize: 18,
-                  onPressed: null,
-                  icon: Icon(Icons.add),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-              ),
-              child: Row(
+
+          if (!isAdmin) ...[
+            if (book.status && book.stockQuantity > 0) ...[
+              // Số lượng cho khách hàng
+              Row(
                 children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.red.shade700,
-                    size: 20,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Số lượng:', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Kho: ${book.stockQuantity} cuốn',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: _quantity >= book.stockQuantity
+                              ? Colors.orange.shade800
+                              : theme.colorScheme.outline,
+                          fontWeight: _quantity >= book.stockQuantity
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
+                  const Spacer(),
+                  IconButton.outlined(
+                    iconSize: 18,
+                    tooltip: 'Giảm số lượng',
+                    onPressed: _quantity > 1
+                        ? () => setState(() => _quantity--)
+                        : null,
+                    icon: const Icon(Icons.remove),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      'Sản phẩm hiện đang tạm hết hàng',
-                      style: TextStyle(
-                        color: Colors.red.shade800,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
+                      '$_quantity',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
+                  IconButton.outlined(
+                    iconSize: 18,
+                    tooltip: _quantity >= book.stockQuantity
+                        ? 'Đã đạt giới hạn tồn kho (${book.stockQuantity})'
+                        : 'Thêm số lượng',
+                    onPressed: _quantity < book.stockQuantity
+                        ? () => setState(() => _quantity++)
+                        : null,
+                    icon: const Icon(Icons.add),
+                  ),
                 ],
               ),
-            ),
-            const Divider(height: 24),
+              const Divider(height: 24),
+            ] else ...[
+              Row(
+                children: [
+                  Text(
+                    'Số lượng:',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                  const Spacer(),
+                  const IconButton.outlined(
+                    iconSize: 18,
+                    onPressed: null,
+                    icon: Icon(Icons.remove),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      '0',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                  const IconButton.outlined(
+                    iconSize: 18,
+                    onPressed: null,
+                    icon: Icon(Icons.add),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: !book.status
+                      ? Colors.grey.withValues(alpha: 0.1)
+                      : Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: !book.status
+                        ? Colors.grey.withValues(alpha: 0.3)
+                        : Colors.red.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      !book.status
+                          ? Icons.pause_circle_outline
+                          : Icons.warning_amber_rounded,
+                      color: !book.status
+                          ? Colors.grey.shade700
+                          : Colors.red.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        !book.status
+                            ? 'Sản phẩm hiện đang tạm dừng bán'
+                            : 'Sản phẩm hiện đang tạm hết hàng',
+                        style: TextStyle(
+                          color: !book.status
+                              ? Colors.grey.shade800
+                              : Colors.red.shade800,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 24),
+            ],
           ],
           _InfoRow(label: 'Tác giả', value: book.author),
           _InfoRow(label: 'Nhà xuất bản', value: book.publisher),
+          _InfoRow(label: 'Số lượng tồn kho', value: '${book.stockQuantity} cuốn'),
           const Divider(height: 32),
           Text(
             'Tóm tắt nội dung',
@@ -320,7 +529,7 @@ class _InfoRow extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              value.isEmpty ? 'Chưa rõ' : value,
+              value.isEmpty ? 'Chưa cập nhật' : value,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),

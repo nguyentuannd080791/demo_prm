@@ -1,6 +1,7 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/error/app_exception.dart';
+import '../../domain/entities/register_params.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 
@@ -25,9 +26,9 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-  Future<String?> register(String username, String password) {
+  Future<String?> register(RegisterParams params) {
     return _authenticate(
-      () => _repository.register(username: username, password: password),
+      () => _repository.register(params),
     );
   }
 

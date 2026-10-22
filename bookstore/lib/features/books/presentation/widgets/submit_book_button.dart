@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 
-/// Nút bấm gửi biểu mẫu tạo sách có hiển thị trạng thái loading
+/// Nút bấm gửi biểu mẫu tạo/sửa sách có hiển thị trạng thái loading
 class SubmitBookButton extends StatelessWidget {
   const SubmitBookButton({
     super.key,
     required this.isSubmitting,
     required this.onPressed,
+    this.label,
+    this.icon,
   });
 
   final bool isSubmitting;
   final VoidCallback onPressed;
+  final String? label;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -30,9 +34,11 @@ class SubmitBookButton extends StatelessWidget {
                 color: Colors.white,
               ),
             )
-          : const Icon(Icons.add_task),
+          : Icon(icon ?? Icons.add_task),
       label: Text(
-        isSubmitting ? 'Đang lưu vào hệ thống...' : 'Tạo sách mới',
+        isSubmitting
+            ? 'Đang lưu vào hệ thống...'
+            : (label ?? 'Tạo sách mới'),
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,

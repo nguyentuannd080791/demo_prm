@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../books/domain/entities/book.dart';
+import '../../../books/presentation/providers/book_provider.dart';
 import '../../../orders/presentation/pages/checkout_page.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/cart_item_tile.dart';
@@ -62,12 +64,34 @@ class CartPage extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             itemCount: cart.items.length,
             separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (_, index) {
+            itemBuilder: (context, index) {
               final item = cart.items[index];
+              final books = context.watch<BookProvider>().books;
+              final book = books.cast<Book?>().firstWhere(
+                    (b) => b?.bookId == item.bookId,
+                    orElse: () => null,
+                  );
+              final stock = book?.stockQuantity;
+
               return CartItemTile(
                 item: item,
-                onIncrease: () =>
-                    cartProvider.changeQuantity(item.bookId, item.quantity + 1),
+                maxStock: stock,
+                onIncrease: () {
+                  if (stock != null && item.quantity >= stock) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Sách "${item.bookName}" chỉ còn $stock cuốn trong kho',
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    return;
+                  }
+                  cartProvider.changeQuantity(item.bookId, item.quantity + 1);
+                },
                 onDecrease: () =>
                     cartProvider.changeQuantity(item.bookId, item.quantity - 1),
                 onRemove: () => cartProvider.remove(item.bookId),

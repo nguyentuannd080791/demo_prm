@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../domain/entities/register_params.dart';
 import '../providers/auth_provider.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -14,16 +15,24 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
   String? _error;
 
   @override
   void dispose() {
+    _fullNameController.dispose();
+    _emailController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -33,10 +42,15 @@ class _RegisterPageState extends State<RegisterPage> {
       _isSubmitting = true;
       _error = null;
     });
-    final error = await context.read<AuthProvider>().register(
-      _usernameController.text.trim(),
-      _passwordController.text,
+
+    final params = RegisterParams(
+      fullName: _fullNameController.text,
+      email: _emailController.text,
+      username: _usernameController.text,
+      password: _passwordController.text,
     );
+
+    final error = await context.read<AuthProvider>().register(params);
     if (!mounted) return;
     if (error == null) {
       Navigator.of(context).popUntil((route) => route.isFirst);
@@ -110,7 +124,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
                   // Tiêu đề form
                   Text(
@@ -122,21 +136,83 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  // Họ và tên
+                  AppTextField(
+                    controller: _fullNameController,
+                    label: 'Họ và tên',
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
+                    validator: Validators.fullName,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email
+                  AppTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    validator: Validators.email,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tên đăng nhập
                   AppTextField(
                     controller: _usernameController,
                     label: 'Tên đăng nhập',
                     prefixIcon: const Icon(Icons.person_outline),
-                    validator: (value) =>
-                        Validators.required(value, 'tên đăng nhập'),
+                    textInputAction: TextInputAction.next,
+                    validator: Validators.username,
                   ),
                   const SizedBox(height: 16),
+
+                  // Mật khẩu
                   AppTextField(
                     controller: _passwordController,
                     label: 'Mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline),
-                    obscureText: true,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.next,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () => setState(
+                        () => _obscurePassword = !_obscurePassword,
+                      ),
+                    ),
                     validator: Validators.password,
                   ),
+                  const SizedBox(height: 16),
+
+                  // Xác nhận mật khẩu
+                  AppTextField(
+                    controller: _confirmPasswordController,
+                    label: 'Xác nhận mật khẩu',
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    obscureText: _obscureConfirmPassword,
+                    textInputAction: TextInputAction.done,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () => setState(
+                        () => _obscureConfirmPassword =
+                            !_obscureConfirmPassword,
+                      ),
+                    ),
+                    validator: (value) => Validators.confirmPassword(
+                      value,
+                      _passwordController.text,
+                    ),
+                  ),
+
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     Container(
@@ -162,6 +238,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ],
                   const SizedBox(height: 24),
+
+                  // Nút Đăng ký
                   FilledButton(
                     onPressed: _isSubmitting ? null : _submit,
                     style: FilledButton.styleFrom(
@@ -189,7 +267,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Chân trang trở về trang đăng nhập (thay thế cho mũi tên AppBar)
+                  // Chân trang trở về trang đăng nhập
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text('Đã có tài khoản? Trở về đăng nhập'),

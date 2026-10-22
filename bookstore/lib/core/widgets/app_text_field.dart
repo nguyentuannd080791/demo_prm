@@ -9,6 +9,9 @@ class AppTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.prefixIcon,
+    this.suffixIcon,
+    this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final TextEditingController controller;
@@ -17,6 +20,9 @@ class AppTextField extends StatelessWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final Widget? prefixIcon;
+  final Widget? suffixIcon;
+  final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +31,12 @@ class AppTextField extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
+      textInputAction: textInputAction,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: prefixIcon,
+        suffixIcon: suffixIcon,
         border: const OutlineInputBorder(),
       ),
     );

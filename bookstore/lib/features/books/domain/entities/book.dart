@@ -7,6 +7,10 @@ class Book {
     required this.publisher,
     required this.summary,
     required this.status,
+    this.isbn = '',
+    this.stockQuantity = 0,
+    this.categoryId,
+    this.imageURL,
   });
 
   final int bookId;
@@ -18,6 +22,15 @@ class Book {
 
   /// true = đang bán.
   final bool status;
+
+  /// Mã số tiêu chuẩn quốc tế cho sách
+  final String isbn;
+
+  /// Số lượng sách tồn kho trong hệ thống
+  final int stockQuantity;
+
+  final int? categoryId;
+  final String? imageURL;
 
   /// Danh sách các tag phân loại chủ đề của sách
   List<String> get tags {

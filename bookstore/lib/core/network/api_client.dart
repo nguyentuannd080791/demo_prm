@@ -11,40 +11,48 @@ typedef TokenReader = Future<String?> Function();
 
 class ApiClient {
   ApiClient({
-    required http.Client httpClient,
-    required TokenReader readToken,
-    void Function()? onUnauthorized,
-  })  : _httpClient = httpClient,
-        _readToken = readToken,
-        _onUnauthorized = onUnauthorized;
+    required this.httpClient,
+    required this.readToken,
+    this.onUnauthorized,
+  });
 
   static const _timeout = Duration(seconds: 15);
 
-  final http.Client _httpClient;
-  final TokenReader _readToken;
-  final void Function()? _onUnauthorized;
+  final http.Client httpClient;
+  final TokenReader readToken;
+  final void Function()? onUnauthorized;
 
-  Future<dynamic> get(String path) => _send('GET', path);
+  Future<dynamic> get(String path, {Map<String, String>? queryParameters}) =>
+      _send('GET', path, queryParameters: queryParameters);
 
   Future<dynamic> post(String path, {Map<String, dynamic>? body}) =>
       _send('POST', path, body: body);
+
+  Future<dynamic> put(String path, {Map<String, dynamic>? body}) =>
+      _send('PUT', path, body: body);
+
+  Future<dynamic> delete(String path) => _send('DELETE', path);
 
   Future<dynamic> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String>? queryParameters,
   }) async {
-    final token = await _readToken();
-    final request =
-        http.Request(method, Uri.parse('${ApiEndpoints.baseUrl}$path'))
-          ..headers['Content-Type'] = 'application/json'
-          ..headers['Accept'] = 'application/json';
+    final token = await readToken();
+    var uri = Uri.parse('${ApiEndpoints.baseUrl}$path');
+    if (queryParameters != null && queryParameters.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParameters);
+    }
+    final request = http.Request(method, uri)
+      ..headers['Content-Type'] = 'application/json'
+      ..headers['Accept'] = 'application/json';
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
     if (body != null) request.body = jsonEncode(body);
 
     final http.Response response;
     try {
-      final streamed = await _httpClient.send(request).timeout(_timeout);
+      final streamed = await httpClient.send(request).timeout(_timeout);
       response = await http.Response.fromStream(streamed);
     } on SocketException {
       throw const AppException('Không thể kết nối máy chủ');
@@ -60,7 +68,7 @@ class ApiClient {
     if (isSuccess) return data;
     // 401 khi chưa có token là sai thông tin đăng nhập, không phải hết phiên.
     if (response.statusCode == 401 && hadToken) {
-      _onUnauthorized?.call();
+      onUnauthorized?.call();
       throw const UnauthorizedException();
     }
     throw AppException(_errorMessage(data, response.statusCode));

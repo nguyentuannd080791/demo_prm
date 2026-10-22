@@ -10,16 +10,20 @@ class CartItemTile extends StatelessWidget {
     required this.onIncrease,
     required this.onDecrease,
     required this.onRemove,
+    this.maxStock,
   });
 
   final CartItem item;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onRemove;
+  final int? maxStock;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMaxReached = maxStock != null && item.quantity >= maxStock!;
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -36,10 +40,29 @@ class CartItemTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    CurrencyFormatter.vnd(item.price),
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: theme.colorScheme.primary),
+                  Row(
+                    children: [
+                      Text(
+                        CurrencyFormatter.vnd(item.price),
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: theme.colorScheme.primary),
+                      ),
+                      if (maxStock != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '(Kho: $maxStock)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isMaxReached
+                                ? Colors.orange.shade800
+                                : theme.colorScheme.outline,
+                            fontWeight: isMaxReached
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -51,9 +74,11 @@ class CartItemTile extends StatelessWidget {
             ),
             Text('${item.quantity}', style: theme.textTheme.titleMedium),
             IconButton(
-              tooltip: 'Tăng',
+              tooltip: isMaxReached
+                  ? 'Đã đạt giới hạn tồn kho ($maxStock cuốn)'
+                  : 'Tăng',
               icon: const Icon(Icons.add_circle_outline),
-              onPressed: onIncrease,
+              onPressed: isMaxReached ? null : onIncrease,
             ),
             IconButton(
               tooltip: 'Xóa',

@@ -15,6 +15,7 @@ import '../features/cart/presentation/providers/cart_provider.dart';
 import '../features/favorites/data/datasources/favorite_prefs_datasource.dart';
 import '../features/favorites/data/repositories/favorite_repository_impl.dart';
 import '../features/favorites/presentation/providers/favorite_provider.dart';
+import '../features/orders/data/datasources/address_local_datasource.dart';
 import '../features/orders/data/datasources/order_remote_datasource.dart';
 import '../features/orders/data/repositories/order_repository_impl.dart';
 import '../features/orders/presentation/providers/order_provider.dart';
@@ -27,6 +28,7 @@ class AppDependencies {
     required this.cartProvider,
     required this.orderProvider,
     required this.favoriteProvider,
+    required this.addressLocalDataSource,
   });
 
   final AuthProvider authProvider;
@@ -34,6 +36,7 @@ class AppDependencies {
   final CartProvider cartProvider;
   final OrderProvider orderProvider;
   final FavoriteProvider favoriteProvider;
+  final AddressLocalDataSource addressLocalDataSource;
 
   static Future<AppDependencies> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,12 +70,15 @@ class AppDependencies {
       OrderRepositoryImpl(OrderRemoteDataSource(apiClient)),
     );
 
+    final addressLocalDataSource = AddressLocalDataSource(prefs);
+
     return AppDependencies._(
       authProvider: authProvider,
       bookProvider: bookProvider,
       cartProvider: cartProvider,
       orderProvider: orderProvider,
       favoriteProvider: favoriteProvider,
+      addressLocalDataSource: addressLocalDataSource,
     );
   }
 }

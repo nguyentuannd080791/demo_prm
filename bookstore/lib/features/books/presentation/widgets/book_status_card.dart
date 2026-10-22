@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Card điều khiển trạng thái kinh doanh của sách (Đang mở bán / Tạm ngừng bán)
+/// Thanh điều khiển trạng thái mở bán của sách (Mở bán / Tạm ngừng bán)
 class BookStatusCard extends StatelessWidget {
   const BookStatusCard({
     super.key,
@@ -15,26 +15,52 @@ class BookStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      elevation: 0,
+    return Material(
+      color: status
+          ? Colors.green.withValues(alpha: 0.08)
+          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: status
+              ? Colors.green.shade400.withValues(alpha: 0.5)
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
       ),
       child: SwitchListTile(
         value: status,
         onChanged: onChanged,
-        secondary: Icon(
-          status ? Icons.check_circle : Icons.pause_circle_outline,
-          color: status ? Colors.green : Colors.grey,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        secondary: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: status
+                ? Colors.green.withValues(alpha: 0.15)
+                : Colors.grey.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            status ? Icons.storefront : Icons.storefront_outlined,
+            color: status ? Colors.green.shade700 : Colors.grey.shade600,
+            size: 22,
+          ),
         ),
         title: const Text(
-          'Trạng thái kinh doanh',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'Mở bán sản phẩm',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
         ),
         subtitle: Text(
-          status ? 'Đang mở bán' : 'Tạm ngừng bán',
+          status
+              ? 'Đang mở bán (Hiển thị sách cho khách hàng)'
+              : 'Tạm ngừng bán (Ẩn sách với khách hàng)',
           style: TextStyle(
+            fontSize: 12.5,
             color: status ? Colors.green.shade700 : theme.colorScheme.outline,
           ),
         ),

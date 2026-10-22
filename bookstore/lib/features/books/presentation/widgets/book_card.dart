@@ -19,36 +19,45 @@ class BookCard extends StatelessWidget {
     );
 
     return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0.8,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Ảnh sách gọn gàng
               Container(
-                width: 68,
-                height: 90,
+                width: 58,
+                height: 76,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
                   child: Icon(
                     Icons.menu_book_rounded,
-                    size: 38,
+                    size: 28,
                     color: theme.colorScheme.primary,
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
+              // Thông tin sách
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Tiêu đề sách + Nút Yêu thích
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -57,14 +66,14 @@ class BookCard extends StatelessWidget {
                             book.bookName,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: 14,
                             ),
                           ),
                         ),
                         IconButton(
-                          iconSize: 22,
+                          iconSize: 20,
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -79,74 +88,83 @@ class BookCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
+                    // Tác giả
                     Text(
                       book.author.isEmpty ? 'Chưa rõ tác giả' : book.author,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.outline,
+                        fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    if (book.tags.isNotEmpty)
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 2,
-                        children: [
-                          for (final tag in book.tags.take(2))
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.secondaryContainer
-                                    .withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '#$tag',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color:
-                                      theme.colorScheme.onSecondaryContainer,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
                     const SizedBox(height: 8),
+                    // Hàng dưới: Giá tiền & Tồn kho (Gọn gàng, loại bỏ ISBN)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           CurrencyFormatter.vnd(book.price),
-                          style: theme.textTheme.titleMedium?.copyWith(
+                          style: TextStyle(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.bold,
+                            fontSize: 14.5,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: book.status
-                                ? Colors.green.withValues(alpha: 0.12)
-                                : Colors.red.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            book.status ? 'Đang bán' : 'Hết hàng',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: book.status ? Colors.green[800] : Colors.red[800],
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Kho: ${book.stockQuantity}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.colorScheme.outline,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
+                            if (!book.status) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Dừng bán',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ),
+                            ] else if (book.stockQuantity <= 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Hết hàng',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red[800],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),

@@ -12,12 +12,26 @@ class AuthLocalDataSource {
 
   final SharedPreferences _prefs;
 
-  Future<String?> readToken() async => _prefs.getString(_tokenKey);
+  Future<String?> readToken() async {
+    final token = _prefs.getString(_tokenKey);
+    if (token == null || token.trim().isEmpty) return null;
+    return token.trim();
+  }
 
   UserModel? readUser() {
     final raw = _prefs.getString(_userKey);
-    if (raw == null) return null;
-    return UserModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      return UserModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get hasSession {
+    final token = _prefs.getString(_tokenKey);
+    final user = _prefs.getString(_userKey);
+    return token != null && token.isNotEmpty && user != null && user.isNotEmpty;
   }
 
   Future<void> saveSession(String token, UserModel user) async {

@@ -5,7 +5,7 @@ import '../../domain/entities/book.dart';
 import '../../domain/entities/create_book_params.dart';
 import 'book_provider.dart';
 
-/// Controller phụ trách quản lý form state và logic gửi dữ liệu tạo sách mới.
+/// Controller phụ trách quản lý form state và logic gửi dữ liệu tạo/sửa sách.
 /// Tuân thủ nguyên lý Single Responsibility Principle (SRP) - tách toàn bộ logic ra khỏi UI.
 class AddBookController extends ChangeNotifier {
   final formKey = GlobalKey<FormState>();
@@ -14,6 +14,7 @@ class AddBookController extends ChangeNotifier {
   final authorController = TextEditingController();
   final publisherController = TextEditingController();
   final priceController = TextEditingController();
+  final stockQuantityController = TextEditingController(text: '10');
   final summaryController = TextEditingController();
 
   bool _status = true;
@@ -28,9 +29,19 @@ class AddBookController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Kiểm tra dữ liệu và gửi yêu cầu tạo sách thông qua [BookProvider]
-  /// Trả về đối tượng [Book] nếu thành công, ném ra ngoại lệ [AppException] nếu có lỗi.
-  Future<Book> submit(BookProvider bookProvider) async {
+  /// Nạp sẵn dữ liệu khi mở form ở chế độ chỉnh sửa (Edit Mode)
+  void initFromBook(Book book) {
+    nameController.text = book.bookName;
+    authorController.text = book.author;
+    publisherController.text = book.publisher;
+    priceController.text = book.price.toStringAsFixed(0);
+    stockQuantityController.text = book.stockQuantity.toString();
+    summaryController.text = book.summary;
+    _status = book.status;
+  }
+
+  /// Kiểm tra dữ liệu và gửi yêu cầu tạo/cập nhật sách thông qua [BookProvider]
+  Future<Book> submit(BookProvider bookProvider, {int? editBookId}) async {
     if (!formKey.currentState!.validate()) {
       throw const AppException('Vui lòng điền đầy đủ và chính xác các thông tin.');
     }
@@ -38,6 +49,11 @@ class AddBookController extends ChangeNotifier {
     final price = double.tryParse(priceController.text.trim());
     if (price == null || price < 0) {
       throw const AppException('Giá sách phải là số hợp lệ (>= 0).');
+    }
+
+    final stock = int.tryParse(stockQuantityController.text.trim());
+    if (stock == null || stock < 0) {
+      throw const AppException('Số lượng sách phải là số nguyên không âm (>= 0).');
     }
 
     _isSubmitting = true;
@@ -50,11 +66,15 @@ class AddBookController extends ChangeNotifier {
         author: authorController.text.trim(),
         publisher: publisherController.text.trim(),
         summary: summaryController.text.trim(),
+        stockQuantity: stock,
         status: _status,
       );
 
-      final createdBook = await bookProvider.createBook(params);
-      return createdBook;
+      if (editBookId != null) {
+        return await bookProvider.updateBook(editBookId, params);
+      } else {
+        return await bookProvider.createBook(params);
+      }
     } finally {
       _isSubmitting = false;
       notifyListeners();
@@ -67,6 +87,7 @@ class AddBookController extends ChangeNotifier {
     authorController.dispose();
     publisherController.dispose();
     priceController.dispose();
+    stockQuantityController.dispose();
     summaryController.dispose();
     super.dispose();
   }

@@ -6,6 +6,9 @@ class CreateBookParams {
     required this.publisher,
     required this.summary,
     this.status = true,
+    this.isbn,
+    this.categoryId = 1,
+    this.stockQuantity = 50,
   });
 
   final String bookName;
@@ -14,14 +17,23 @@ class CreateBookParams {
   final String publisher;
   final String summary;
   final bool status;
+  final String? isbn;
+  final int categoryId;
+  final int stockQuantity;
 
-  /// Chuyển đổi sang Map JSON tương thích với endpoint POST /api/books của backend
+  /// Chuyển đổi sang Map JSON tương thích với các endpoint POST / PUT /api/books của backend
   Map<String, dynamic> toJson() => {
+        'bookName': bookName.trim(),
         'bookname': bookName.trim(),
         'price': price,
         'author': author.trim(),
         'publisher': publisher.trim(),
         'summary': summary.trim(),
-        'status': status,
+        'description': summary.trim(),
+        'isbn': isbn ??
+            '978-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
+        'categoryId': categoryId,
+        'stockQuantity': stockQuantity,
+        'status': (status && stockQuantity > 0) ? 'ACTIVE' : 'INACTIVE',
       };
 }

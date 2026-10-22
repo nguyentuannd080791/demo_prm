@@ -1,4 +1,5 @@
-﻿import '../../domain/entities/user.dart';
+import '../../domain/entities/register_params.dart';
+import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_datasource.dart';
 import '../datasources/auth_remote_datasource.dart';
@@ -17,19 +18,21 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<User> register({
-    required String username,
-    required String password,
-  }) async {
-    await _remote.register(username, password);
-    return login(username: username, password: password);
+  Future<User> register(RegisterParams params) async {
+    await _remote.register(params);
+    return login(username: params.username, password: params.password);
   }
 
   @override
   Future<User?> restoreSession() async {
     final token = await _local.readToken();
-    if (token == null) return null;
-    return _local.readUser();
+    if (token == null || token.isEmpty) return null;
+    final user = _local.readUser();
+    if (user == null) {
+      await _local.clear();
+      return null;
+    }
+    return user;
   }
 
   @override

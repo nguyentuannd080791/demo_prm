@@ -34,6 +34,9 @@ class App extends StatelessWidget {
         ChangeNotifierProvider<OrderProvider>.value(
           value: dependencies.orderProvider,
         ),
+        Provider.value(
+          value: dependencies.addressLocalDataSource,
+        ),
       ],
       child: MaterialApp(
         title: 'Book Store',
