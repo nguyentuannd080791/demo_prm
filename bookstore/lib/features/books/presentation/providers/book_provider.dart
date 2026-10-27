@@ -30,14 +30,19 @@ class BookProvider extends ChangeNotifier {
 
   /// Nạp danh sách sách theo các tiêu chí tìm kiếm/lọc.
   /// Nếu [isAdmin] == false (người dùng bình thường): bắt buộc chỉ lấy sách đang bán (status = ACTIVE).
-  Future<void> loadBooks({BookFilterParams? params, bool isAdmin = true}) async {
+  Future<void> loadBooks({
+    BookFilterParams? params,
+    bool isAdmin = true,
+  }) async {
     if (params != null) {
       _filterParams = params;
     }
     // Khách hàng bình thường không bao giờ thấy sách hết hàng
     if (!isAdmin) {
-      _filterParams = _filterParams.copyWith(status: 'ACTIVE');
+      _filterParams = _filterParams.copyWith(status: 'ALL');
     }
+
+    debugPrint("[Filter Status] ${_filterParams.status}");
 
     _isLoading = true;
     _error = null;

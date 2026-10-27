@@ -44,8 +44,9 @@ class CartItemTile extends StatelessWidget {
                     children: [
                       Text(
                         CurrencyFormatter.vnd(item.price),
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: theme.colorScheme.primary),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
                       if (maxStock != null) ...[
                         const SizedBox(width: 8),

@@ -41,8 +41,11 @@ class BookCard extends StatelessWidget {
                 child: Container(
                   width: 58,
                   height: 76,
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-                  child: (book.imageURL != null &&
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.45,
+                  ),
+                  child:
+                      (book.imageURL != null &&
                           book.imageURL!.trim().isNotEmpty)
                       ? Image.network(
                           book.imageURL!,
@@ -93,7 +96,9 @@ class BookCard extends StatelessWidget {
                           tooltip: isFav ? 'Bỏ yêu thích' : 'Yêu thích',
                           icon: Icon(
                             isFav ? Icons.favorite : Icons.favorite_border,
-                            color: isFav ? Colors.red : theme.colorScheme.outline,
+                            color: isFav
+                                ? Colors.red
+                                : theme.colorScheme.outline,
                           ),
                           onPressed: () => context
                               .read<FavoriteProvider>()

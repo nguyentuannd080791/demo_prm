@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,6 +32,24 @@ class AppDependencies {
     required this.addressLocalDataSource,
   });
 
+  factory AppDependencies.custom({
+    required AuthProvider authProvider,
+    required BookProvider bookProvider,
+    required CartProvider cartProvider,
+    required OrderProvider orderProvider,
+    required FavoriteProvider favoriteProvider,
+    required AddressLocalDataSource addressLocalDataSource,
+  }) {
+    return AppDependencies._(
+      authProvider: authProvider,
+      bookProvider: bookProvider,
+      cartProvider: cartProvider,
+      orderProvider: orderProvider,
+      favoriteProvider: favoriteProvider,
+      addressLocalDataSource: addressLocalDataSource,
+    );
+  }
+
   final AuthProvider authProvider;
   final BookProvider bookProvider;
   final CartProvider cartProvider;
@@ -47,7 +66,10 @@ class AppDependencies {
       httpClient: http.Client(),
       readToken: authLocal.readToken,
       // Token hết hạn/bị từ chối -> đăng xuất, _AuthGate tự quay về LoginPage.
-      onUnauthorized: () => authProvider.logout(),
+      onUnauthorized: () {
+        debugPrint('[ApiClient] Nhận mã 401 Unauthorized từ Server -> Tự động đăng xuất');
+        authProvider.logout();
+      },
     );
 
     authProvider = AuthProvider(

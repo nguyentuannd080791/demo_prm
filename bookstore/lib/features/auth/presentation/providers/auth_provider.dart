@@ -17,6 +17,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> restoreSession() async {
     _user = await _repository.restoreSession();
+    if (_user != null) {
+      debugPrint(
+        '[AuthProvider] Khôi phục phiên thành công: ${_user!.username} (Role: ${_user!.role})',
+      );
+    } else {
+      debugPrint('[AuthProvider] Không có phiên đăng nhập nào được lưu');
+    }
     notifyListeners();
   }
 
@@ -27,9 +34,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<String?> register(RegisterParams params) {
-    return _authenticate(
-      () => _repository.register(params),
-    );
+    return _authenticate(() => _repository.register(params));
   }
 
   Future<void> logout() async {
@@ -44,7 +49,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return null;
     } on AppException catch (e) {
-      return e.message;
+      return "Tài khoản hoặc mật khẩu không chính xác";
     } catch (_) {
       return 'Đã có lỗi xảy ra, vui lòng thử lại';
     }

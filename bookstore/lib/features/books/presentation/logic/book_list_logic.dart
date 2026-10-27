@@ -18,9 +18,9 @@ class BookListLogic extends ChangeNotifier {
   }
 
   Future<void> openDetail(BuildContext context, Book book) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => BookDetailPage(book: book)),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => BookDetailPage(book: book)));
     if (context.mounted) {
       final isAdmin = context.read<AuthProvider>().user?.isAdmin ?? false;
       context.read<BookProvider>().loadBooks(isAdmin: isAdmin);
@@ -54,7 +54,11 @@ class BookListLogic extends ChangeNotifier {
     );
   }
 
-  void handleSearchSubmit(BuildContext context, String keyword, {required bool isAdmin}) {
+  void handleSearchSubmit(
+    BuildContext context,
+    String keyword, {
+    required bool isAdmin,
+  }) {
     final provider = context.read<BookProvider>();
     final trimmed = keyword.trim();
     provider.applyFilters(
@@ -83,7 +87,9 @@ class BookListLogic extends ChangeNotifier {
       if (!isAdmin && (!b.status || b.stockQuantity <= 0)) {
         return false;
       }
-      if (activeTag != null && activeTag != 'Tất cả' && !b.tags.contains(activeTag)) {
+      if (activeTag != null &&
+          activeTag != 'Tất cả' &&
+          !b.tags.contains(activeTag)) {
         return false;
       }
       return true;

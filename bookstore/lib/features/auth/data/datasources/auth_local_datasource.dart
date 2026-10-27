@@ -12,6 +12,8 @@ class AuthLocalDataSource {
 
   final SharedPreferences _prefs;
 
+  Future<void> reload() => _prefs.reload();
+
   Future<String?> readToken() async {
     final token = _prefs.getString(_tokenKey);
     if (token == null || token.trim().isEmpty) return null;
